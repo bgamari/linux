@@ -1327,6 +1327,7 @@ static int omap2_mcspi_probe(struct platform_device *pdev)
 	static int		bus_num = 1;
 	struct device_node	*node = pdev->dev.of_node;
 	const struct of_device_id *match;
+	u32 num_dma;
 
 	master = spi_alloc_master(&pdev->dev, sizeof *mcspi);
 	if (master == NULL) {
@@ -1367,6 +1368,7 @@ static int omap2_mcspi_probe(struct platform_device *pdev)
 			master->bus_num = pdev->id;
 		mcspi->pin_dir = pdata->pin_dir;
 	}
+	num_dma = master->num_chipselect;
 	regs_offset = pdata->regs_offset;
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1389,15 +1391,16 @@ static int omap2_mcspi_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&mcspi->ctx.cs);
 
-	mcspi->dma_channels = devm_kcalloc(&pdev->dev, master->num_chipselect,
-					   sizeof(struct omap2_mcspi_dma),
-					   GFP_KERNEL);
+	mcspi->dma_channels = kcalloc(num_dma,
+			sizeof(struct omap2_mcspi_dma),
+			GFP_KERNEL);
+
 	if (mcspi->dma_channels == NULL) {
 		status = -ENOMEM;
 		goto free_master;
 	}
 
-	for (i = 0; i < master->num_chipselect; i++) {
+	for (i = 0; i < num_dma; i++) {
 		char *dma_rx_ch_name = mcspi->dma_channels[i].dma_rx_ch_name;
 		char *dma_tx_ch_name = mcspi->dma_channels[i].dma_tx_ch_name;
 		struct resource *dma_res;

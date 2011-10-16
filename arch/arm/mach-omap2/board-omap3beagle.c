@@ -36,6 +36,7 @@
 
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
+#include <linux/spi/spi.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -45,6 +46,8 @@
 #include <video/omapdss.h>
 #include <video/omap-panel-data.h>
 #include <linux/platform_data/mtd-nand-omap2.h>
+#include <linux/platform_data/spi-omap2-mcspi.h>
+#include <linux/platform_data/pca953x.h>
 
 #include "common.h"
 #include "omap_device.h"
@@ -396,10 +399,18 @@ static struct twl4030_platform_data beagle_twldata = {
 	.vsim		= &beagle_vsim,
 };
 
+static struct pca953x_platform_data beagle_gpio_expander_info = {
+	.gpio_base = -1,
+};
+
 static struct i2c_board_info __initdata beagle_i2c_eeprom[] = {
        {
                I2C_BOARD_INFO("eeprom", 0x50),
        },
+	{
+		I2C_BOARD_INFO("tca6416", 0x20),
+		.platform_data = &beagle_gpio_expander_info,
+	},
 };
 
 static int __init omap3_beagle_i2c_init(void)
@@ -415,6 +426,11 @@ static int __init omap3_beagle_i2c_init(void)
 	/* Bus 3 is attached to the DVI port where devices like the pico DLP
 	 * projector don't work reliably with 400kHz */
 	omap_register_i2c_bus(3, 100, beagle_i2c_eeprom, ARRAY_SIZE(beagle_i2c_eeprom));
+
+	gpio_request(139, "GPIO-IRQ");
+	gpio_direction_input(139);
+	beagle_gpio_expander_info.irq_base = gpio_to_irq(139);
+
 	return 0;
 }
 
@@ -478,6 +494,214 @@ static struct platform_device *omap3_beagle_devices[] __initdata = {
 	&madc_hwmon,
 	&leds_pwm,
 };
+
+/*
+ * SPI chip select multiplexing for BeagleDAQ
+ *
+ * The BeagleDAQ board supports up to 4 ADCs and 4 DACs whereas the BeagleBoard
+ * only provides at most 4 chip selects. We work around this by using a
+ * multiplexing scheme. The chip select lines on the board are produced by two
+ * 1-to-4 multiplexers, each driving 4 devices.
+ *
+ * We register two gpio_chips to expose these multiplexers as GPIOs usable by the
+ * GPIO chip select functionality in the McSPI driver.
+ *
+ * Important: The chip select lines are active low.
+ */
+static int csmux_set_direction_input(struct gpio_chip *chip, unsigned offset)
+{
+	return -ENOSYS;
+}
+
+static int csmux_set_direction_output(struct gpio_chip *chip, unsigned offset, int value)
+{
+	return -ENOSYS;
+}
+
+static int csmux_get(struct gpio_chip *chip, unsigned offset)
+{
+	return -ENOSYS;
+}
+
+#define BEAGLEDAQ_CONVSTART	145
+#define BEAGLEDAQ_ADC_CS_EN	135
+#define BEAGLEDAQ_ADC_CS_MUX0	157
+#define BEAGLEDAQ_ADC_CS_MUX1	162
+#define BEAGLEDAQ_DAC_CS_EN	161
+#define BEAGLEDAQ_DAC_CS_MUX0	134
+#define BEAGLEDAQ_DAC_CS_MUX1	133
+
+static void adc_csmux_set(struct gpio_chip *chip, unsigned offset, int value)
+{
+	unsigned int n = offset - chip->base;
+	gpio_set_value(BEAGLEDAQ_ADC_CS_EN, 1);
+	gpio_set_value(BEAGLEDAQ_ADC_CS_MUX0, (n & 0x1) != 0);
+	gpio_set_value(BEAGLEDAQ_ADC_CS_MUX1, (n & 0x2) != 0);
+	if (value) gpio_set_value(BEAGLEDAQ_ADC_CS_EN, 0);
+}
+
+void dac_csmux_set(struct gpio_chip *chip, unsigned offset, int value)
+{
+	unsigned int n = offset - chip->base;
+	gpio_set_value(BEAGLEDAQ_DAC_CS_EN, 1);
+	gpio_set_value(BEAGLEDAQ_DAC_CS_MUX0, (n & 0x1) != 0);
+	gpio_set_value(BEAGLEDAQ_DAC_CS_MUX1, (n & 0x2) != 0);
+	if (value) gpio_set_value(BEAGLEDAQ_DAC_CS_EN, 0);
+};
+
+static const char* adc_csmux_names[] = { "adc1", "adc2", "adc3", "adc4" };
+
+static struct gpio_chip adc_csmux_chip = {
+	.label = "BeagleDAQ ADC chip selects",
+	.direction_input = csmux_set_direction_input,
+	.get = csmux_get,
+	.direction_output = csmux_set_direction_output,
+	.set = adc_csmux_set,
+	.base = -1,
+	.ngpio = 4,
+	.names = adc_csmux_names,
+};
+
+static const char* dac_csmux_names[] = { "dac1", "dac2", "dac3", "dac4" };
+
+static struct gpio_chip dac_csmux_chip = {
+	.label = "BeagleDAQ DAC chip selects",
+	.dev = NULL,
+	.direction_input = csmux_set_direction_input,
+	.get = csmux_get,
+	.direction_output = csmux_set_direction_output,
+	.set = dac_csmux_set,
+	.base = -1,
+	.ngpio = 4,
+	.names = dac_csmux_names,
+};
+
+#define MBIT_SEC 1000000
+static struct spi_board_info beagledaq_mcspi_board_info[] = {
+	// spi 3.0
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 3,
+		.chip_select	= 0,
+		.mode		= SPI_MODE_1,
+	},
+	// spi 3.1
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 3,
+		.chip_select	= 1,
+		.mode		= SPI_MODE_1,
+	},
+	// spi 3.2
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 3,
+		.chip_select	= 2,
+		.mode		= SPI_MODE_1,
+	},
+	// spi 3.3
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 3,
+		.chip_select	= 3,
+		.mode		= SPI_MODE_1,
+	},
+
+	// spi 4.0
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 4,
+		.chip_select	= 0,
+		.mode		= SPI_MODE_1,
+	},
+	// spi 4.1
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 4,
+		.chip_select	= 1,
+		.mode		= SPI_MODE_1,
+	},
+	// spi 4.2
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 4,
+		.chip_select	= 2,
+		.mode		= SPI_MODE_1,
+	},
+	// spi 4.3
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 20*MBIT_SEC,
+		.bus_num	= 4,
+		.chip_select	= 3,
+		.mode		= SPI_MODE_1,
+	},
+};
+
+int mcspi3_cs_gpios[4];
+int mcspi4_cs_gpios[4];
+
+static void __init beagledaq_init(void)
+{
+	int i, ret;
+
+	printk(KERN_INFO "BeagleDAQ (c) Ben Gamari 2011\n");
+	gpio_request_one(BEAGLEDAQ_CONVSTART, GPIOF_OUT_INIT_LOW, "BeagleDAQ conversion trigger");
+	gpio_export(BEAGLEDAQ_CONVSTART, false);
+	gpio_request_one(BEAGLEDAQ_ADC_CS_EN, GPIOF_OUT_INIT_LOW, "BeagleDAQ ADC master CS");
+	gpio_request_one(BEAGLEDAQ_ADC_CS_MUX0, GPIOF_OUT_INIT_LOW, "BeagleDAQ ADC CS mux0");
+	gpio_request_one(BEAGLEDAQ_ADC_CS_MUX1, GPIOF_OUT_INIT_LOW, "BeagleDAQ ADC CS mux1");
+	gpio_request_one(BEAGLEDAQ_DAC_CS_EN, GPIOF_OUT_INIT_LOW, "BeagleDAQ DAC master CS");
+	gpio_request_one(BEAGLEDAQ_DAC_CS_MUX0, GPIOF_OUT_INIT_LOW, "BeagleDAQ DAC CS mux0");
+	gpio_request_one(BEAGLEDAQ_DAC_CS_MUX1, GPIOF_OUT_INIT_LOW, "BeagleDAQ DAC CS mux1");
+
+	// Start conversion pin
+	omap_mux_init_signal("uart2_rts.gpio_145", OMAP_PIN_OUTPUT);
+
+	/*
+	 * SPI pins
+	 * NOTE: Clock pins need to be in input mode for controller to register
+	 * input data
+	 */
+	// McSPI3 pinmux configuration (ADCs)
+	omap_mux_init_signal("sdmmc2_clk.mcspi3_clk", OMAP_PIN_INPUT);
+	omap_mux_init_signal("sdmmc2_cmd.mcspi3_simo", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("sdmmc2_dat0.mcspi3_somi", OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("sdmmc2_dat3.gpio_135", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("sdmmc2_dat2.gpio_134", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("sdmmc2_dat1.gpio_133", OMAP_PIN_OUTPUT);
+	// McSPI4 pinmux configuration (DACs)
+	omap_mux_init_signal("mcbsp1_clkr.mcspi4_clk", OMAP_PIN_INPUT);
+	omap_mux_init_signal("mcbsp1_dx.mcspi4_simo", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("mcbsp1_dr.mcspi4_somi", OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("mcbsp1_fsx.gpio_161", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("mcbsp1_fsr.gpio_157", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("mcbsp1_clkx.gpio_162", OMAP_PIN_OUTPUT);
+
+	ret = gpiochip_add(&adc_csmux_chip);
+	if (ret)
+		printk(KERN_ERR "Failed to register ADC mux: %d\n", ret);
+	ret = gpiochip_add(&dac_csmux_chip);
+	if (ret)
+		printk(KERN_ERR "Failed to register DAC mux: %d\n", ret);
+
+	for (i=0; i<4; i++) {
+		mcspi3_cs_gpios[i] = adc_csmux_chip.base + i;
+		mcspi4_cs_gpios[i] = dac_csmux_chip.base + i;
+	}
+
+	ret = spi_register_board_info(beagledaq_mcspi_board_info,
+			ARRAY_SIZE(beagledaq_mcspi_board_info));
+	if (ret)
+		printk(KERN_ERR "Failed to register SPI board: %d\n", ret);
+}
 
 static struct usbhs_omap_platform_data usbhs_bdata __initdata = {
 	.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
@@ -579,6 +803,7 @@ static void __init omap3_beagle_init(void)
 	omap_mux_init_signal("sdrc_cke1", OMAP_PIN_OUTPUT);
 
 	pwm_add_table(pwm_lookup, ARRAY_SIZE(pwm_lookup));
+	beagledaq_init();
 }
 
 MACHINE_START(OMAP3_BEAGLE, "OMAP3 Beagle Board")

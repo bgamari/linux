@@ -14,6 +14,7 @@ struct omap2_mcspi_platform_config {
 	unsigned short	num_cs;
 	unsigned int regs_offset;
 	unsigned int pin_dir:1;
+	int *cs_gpios;
 };
 
 struct omap2_mcspi_dev_attr {

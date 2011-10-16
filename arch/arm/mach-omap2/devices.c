@@ -167,6 +167,9 @@ static inline void omap_init_audio(void) {}
 
 #include <linux/platform_data/spi-omap2-mcspi.h>
 
+extern int mcspi3_cs_gpios[4];
+extern int mcspi4_cs_gpios[4];
+
 static int __init omap_mcspi_init(struct omap_hwmod *oh, void *unused)
 {
 	struct platform_device *pdev;
@@ -194,6 +197,18 @@ static int __init omap_mcspi_init(struct omap_hwmod *oh, void *unused)
 			pr_err("Invalid McSPI Revision value\n");
 			kfree(pdata);
 			return -EINVAL;
+	}
+
+	/* HACK: Not enough time to figure out how to export cs_gpios from
+	 * board file to driver correctly */
+	if (spi_num == 2) {
+		// Setup McSPI3 cs_gpios
+		pdata->num_cs = 4;
+		pdata->cs_gpios = mcspi3_cs_gpios;
+	} else if (spi_num == 3) {
+		// Setup McSPI4 cs_gpios
+		pdata->num_cs = 4;
+		pdata->cs_gpios = mcspi4_cs_gpios;
 	}
 
 	spi_num++;
