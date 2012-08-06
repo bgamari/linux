@@ -78,10 +78,10 @@ static int __init pandadaq_init_gpmc(struct pandadaq_data *pdaq)
 	gpmc_cs_configure(0, GPMC_CONFIG_DEV_SIZE, 1); /* 16-bits */
 
 	l = gpmc_cs_read_reg(0, GPMC_CS_CONFIG1);
-	l |= 1 << 8; /* AAD multiplexing */
 	l |= GPMC_CONFIG1_FCLK_DIV4;
 	l |= GPMC_CONFIG1_READTYPE_SYNC;
 	l |= GPMC_CONFIG1_WRITETYPE_SYNC;
+        l &= ~GPMC_CONFIG1_WAIT_READ_MON;
 	gpmc_cs_write_reg(0, GPMC_CS_CONFIG1, l);
 	
 	ret = gpmc_cs_set_timings(0, &t);
