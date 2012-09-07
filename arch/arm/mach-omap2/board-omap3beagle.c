@@ -29,6 +29,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/nand.h>
 #include <linux/mmc/host.h>
+#include <linux/spi/spi.h>
 
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
@@ -243,6 +244,45 @@ static struct regulator_consumer_supply beagle_vmmc1_supply[] = {
 static struct regulator_consumer_supply beagle_vsim_supply[] = {
 	REGULATOR_SUPPLY("vmmc_aux", "omap_hsmmc.0"),
 };
+
+static struct spi_board_info beagle_udaq_mcspi_board_info[] = {
+	// spi 3.0
+	{
+		.modalias	= "spidev",
+		.max_speed_hz	= 48000000, // 48 Mbps
+		.bus_num	= 3,
+		.chip_select	= 0,
+		.mode = SPI_MODE_1,
+	},
+};
+
+static struct gpio beagle_udaq_gpios[] __initdata = {
+	{ 139, GPIOF_DIR_OUT | GPIOF_EXPORT_DIR_FIXED | GPIOF_INIT_LOW, "udaq_reset"    },
+	{ 144, GPIOF_DIR_OUT | GPIOF_EXPORT_DIR_FIXED | GPIOF_INIT_LOW, "udaq_power_en" },
+	{ 161, GPIOF_DIR_OUT | GPIOF_EXPORT_DIR_FIXED | GPIOF_INIT_LOW, "udaq_boot0"    },
+};
+
+static void __init beagle_udaq_init(void)
+{
+        // McSPI3
+        // NOTE: Clock pins need to be in input mode
+	omap_mux_init_signal("sdmmc2_clk.mcspi3_clk", OMAP_PIN_INPUT);
+	omap_mux_init_signal("sdmmc2_dat3.mcspi3_cs0", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("sdmmc2_cmd.mcspi3_simo", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("sdmmc2_dat0.mcspi3_somi", OMAP_PIN_INPUT_PULLUP);
+
+	omap_mux_init_signal("uart2_tx.uart2_tx", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("mcbsp3_fsx.uart2_rx", OMAP_PIN_INPUT);
+
+	omap_mux_init_signal("sdmmc2_dat7.gpio_139", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("uart2_cts.gpio_144", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("mcbsp1_fsx.gpio_161", OMAP_PIN_OUTPUT);
+
+	gpio_request_array(beagle_udaq_gpios, ARRAY_SIZE(beagle_udaq_gpios));
+
+	spi_register_board_info(beagle_udaq_mcspi_board_info,
+				ARRAY_SIZE(beagle_udaq_mcspi_board_info));
+}
 
 static struct gpio_led gpio_leds[];
 
@@ -528,6 +568,8 @@ static void __init omap3_beagle_init(void)
 	omap_mux_init_signal("sdrc_cke1", OMAP_PIN_OUTPUT);
 
 	beagle_opp_init();
+
+	beagle_udaq_init();
 }
 
 MACHINE_START(OMAP3_BEAGLE, "OMAP3 Beagle Board")
