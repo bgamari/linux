@@ -66,6 +66,7 @@ extern int mx51_clocks_init(unsigned long ckil, unsigned long osc,
 			unsigned long ckih1, unsigned long ckih2);
 extern int mx53_clocks_init(unsigned long ckil, unsigned long osc,
 			unsigned long ckih1, unsigned long ckih2);
+extern int mx25_clocks_init_dt(void);
 extern int mx27_clocks_init_dt(void);
 extern int mx31_clocks_init_dt(void);
 extern int mx51_clocks_init_dt(void);
@@ -141,6 +142,7 @@ extern int imx6q_set_lpm(enum mxc_cpu_pwr_mode mode);
 extern void imx6q_clock_map_io(void);
 
 extern void imx_cpu_die(unsigned int cpu);
+extern int imx_cpu_kill(unsigned int cpu);
 
 #ifdef CONFIG_PM
 extern void imx6q_pm_init(void);

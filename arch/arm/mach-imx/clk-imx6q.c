@@ -424,6 +424,7 @@ int __init mx6q_clocks_init(void)
 	clk_register_clkdev(clk[cko1_sel], "cko1_sel", NULL);
 	clk_register_clkdev(clk[ahb], "ahb", NULL);
 	clk_register_clkdev(clk[cko1], "cko1", NULL);
+	clk_register_clkdev(clk[arm], NULL, "cpu0");
 
 	/*
 	 * The gpmi needs 100MHz frequency in the EDO/Sync mode,
@@ -434,6 +435,9 @@ int __init mx6q_clocks_init(void)
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clk[clks_init_on[i]]);
+
+	/* Set initial power mode */
+	imx6q_set_lpm(WAIT_CLOCKED);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-gpt");
 	base = of_iomap(np, 0);
