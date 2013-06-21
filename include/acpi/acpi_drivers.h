@@ -90,17 +90,11 @@ int acpi_pci_link_allocate_irq(acpi_handle handle, int index, int *triggering,
 			       int *polarity, char **name);
 int acpi_pci_link_free_irq(acpi_handle handle);
 
-/* ACPI PCI Interrupt Routing (pci_irq.c) */
-
-int acpi_pci_irq_add_prt(acpi_handle handle, int segment, int bus);
-void acpi_pci_irq_del_prt(int segment, int bus);
-
 /* ACPI PCI Device Binding (pci_bind.c) */
 
 struct pci_bus;
 
 struct pci_dev *acpi_get_pci_dev(acpi_handle);
-int acpi_pci_bind_root(struct acpi_device *device);
 
 /* Arch-defined function to add a bus to the system */
 

@@ -28,7 +28,7 @@
 #include "fsl_msi.h"
 #include "fsl_pci.h"
 
-LIST_HEAD(msi_head);
+static LIST_HEAD(msi_head);
 
 struct fsl_msi_feature {
 	u32 fsl_pic_ip;
@@ -130,7 +130,7 @@ static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 	struct pci_controller *hose = pci_bus_to_host(pdev->bus);
 	u64 address; /* Physical address of the MSIIR */
 	int len;
-	const u64 *reg;
+	const __be64 *reg;
 
 	/* If the msi-address-64 property exists, then use it */
 	reg = of_get_property(hose->dn, "msi-address-64", &len);
@@ -333,6 +333,8 @@ static int fsl_of_msi_remove(struct platform_device *ofdev)
 	return 0;
 }
 
+static struct lock_class_key fsl_msi_irq_class;
+
 static int fsl_msi_setup_hwirq(struct fsl_msi *msi, struct platform_device *dev,
 			       int offset, int irq_index)
 {
@@ -351,7 +353,7 @@ static int fsl_msi_setup_hwirq(struct fsl_msi *msi, struct platform_device *dev,
 		dev_err(&dev->dev, "No memory for MSI cascade data\n");
 		return -ENOMEM;
 	}
-
+	irq_set_lockdep_class(virt_msir, &fsl_msi_irq_class);
 	msi->msi_virqs[irq_index] = virt_msir;
 	cascade_data->index = offset;
 	cascade_data->msi_data = msi;

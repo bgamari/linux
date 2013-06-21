@@ -38,6 +38,7 @@
 
 #define OP_31_XOP_TRAP      4
 #define OP_31_XOP_LWZX      23
+#define OP_31_XOP_DCBST     54
 #define OP_31_XOP_TRAP_64   68
 #define OP_31_XOP_DCBF      86
 #define OP_31_XOP_LBZX      87
@@ -150,8 +151,6 @@ static int kvmppc_emulate_mtspr(struct kvm_vcpu *vcpu, int sprn, int rs)
 	case SPRN_TBWL: break;
 	case SPRN_TBWU: break;
 
-	case SPRN_MSSSR0: break;
-
 	case SPRN_DEC:
 		vcpu->arch.dec = spr_val;
 		kvmppc_emulate_dec(vcpu);
@@ -201,9 +200,6 @@ static int kvmppc_emulate_mfspr(struct kvm_vcpu *vcpu, int sprn, int rt)
 		break;
 	case SPRN_PIR:
 		spr_val = vcpu->vcpu_id;
-		break;
-	case SPRN_MSSSR0:
-		spr_val = 0;
 		break;
 
 	/* Note: mftb and TBRL/TBWL are user-accessible, so
@@ -375,6 +371,7 @@ int kvmppc_emulate_instruction(struct kvm_run *run, struct kvm_vcpu *vcpu)
 			emulated = kvmppc_emulate_mtspr(vcpu, sprn, rs);
 			break;
 
+		case OP_31_XOP_DCBST:
 		case OP_31_XOP_DCBF:
 		case OP_31_XOP_DCBI:
 			/* Do nothing. The guest is performing dcbi because

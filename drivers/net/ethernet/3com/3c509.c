@@ -306,6 +306,7 @@ static int el3_isa_match(struct device *pdev, unsigned int ndev)
 	if (!dev)
 		return -ENOMEM;
 
+	SET_NETDEV_DEV(dev, pdev);
 	netdev_boot_setup_check(dev);
 
 	if (!request_region(ioaddr, EL3_IO_EXTENT, "3c509-isa")) {
@@ -595,6 +596,7 @@ static int __init el3_eisa_probe (struct device *device)
 		return -ENOMEM;
 	}
 
+	SET_NETDEV_DEV(dev, device);
 	netdev_boot_setup_check(dev);
 
 	el3_dev_fill(dev, phys_addr, ioaddr, irq, if_port, EL3_EISA);
@@ -1161,8 +1163,8 @@ el3_netdev_set_ecmd(struct net_device *dev, struct ethtool_cmd *ecmd)
 
 static void el3_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info)
 {
-	strcpy(info->driver, DRV_NAME);
-	strcpy(info->version, DRV_VERSION);
+	strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
+	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
 }
 
 static int el3_get_settings(struct net_device *dev, struct ethtool_cmd *ecmd)

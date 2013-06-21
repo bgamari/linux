@@ -359,10 +359,26 @@ static int emac_reset(struct emac_instance *dev)
 	}
 
 #ifdef CONFIG_PPC_DCR_NATIVE
-	/* Enable internal clock source */
-	if (emac_has_feature(dev, EMAC_FTR_460EX_PHY_CLK_FIX))
-		dcri_clrset(SDR0, SDR0_ETH_CFG,
-			    0, SDR0_ETH_CFG_ECS << dev->cell_index);
+	/*
+	 * PPC460EX/GT Embedded Processor Advanced User's Manual
+	 * section 28.10.1 Mode Register 0 (EMACx_MR0) states:
+	 * Note: The PHY must provide a TX Clk in order to perform a soft reset
+	 * of the EMAC. If none is present, select the internal clock
+	 * (SDR0_ETH_CFG[EMACx_PHY_CLK] = 1).
+	 * After a soft reset, select the external clock.
+	 */
+	if (emac_has_feature(dev, EMAC_FTR_460EX_PHY_CLK_FIX)) {
+		if (dev->phy_address == 0xffffffff &&
+		    dev->phy_map == 0xffffffff) {
+			/* No PHY: select internal loop clock before reset */
+			dcri_clrset(SDR0, SDR0_ETH_CFG,
+				    0, SDR0_ETH_CFG_ECS << dev->cell_index);
+		} else {
+			/* PHY present: select external clock before reset */
+			dcri_clrset(SDR0, SDR0_ETH_CFG,
+				    SDR0_ETH_CFG_ECS << dev->cell_index, 0);
+		}
+	}
 #endif
 
 	out_be32(&p->mr0, EMAC_MR0_SRST);
@@ -370,10 +386,14 @@ static int emac_reset(struct emac_instance *dev)
 		--n;
 
 #ifdef CONFIG_PPC_DCR_NATIVE
-	 /* Enable external clock source */
-	if (emac_has_feature(dev, EMAC_FTR_460EX_PHY_CLK_FIX))
-		dcri_clrset(SDR0, SDR0_ETH_CFG,
-			    SDR0_ETH_CFG_ECS << dev->cell_index, 0);
+	if (emac_has_feature(dev, EMAC_FTR_460EX_PHY_CLK_FIX)) {
+		if (dev->phy_address == 0xffffffff &&
+		    dev->phy_map == 0xffffffff) {
+			/* No PHY: restore external clock source after reset */
+			dcri_clrset(SDR0, SDR0_ETH_CFG,
+				    SDR0_ETH_CFG_ECS << dev->cell_index, 0);
+		}
+	}
 #endif
 
 	if (n) {
@@ -2190,11 +2210,10 @@ static void emac_ethtool_get_drvinfo(struct net_device *ndev,
 {
 	struct emac_instance *dev = netdev_priv(ndev);
 
-	strcpy(info->driver, "ibm_emac");
-	strcpy(info->version, DRV_VERSION);
-	info->fw_version[0] = '\0';
-	sprintf(info->bus_info, "PPC 4xx EMAC-%d %s",
-		dev->cell_index, dev->ofdev->dev.of_node->full_name);
+	strlcpy(info->driver, "ibm_emac", sizeof(info->driver));
+	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
+	snprintf(info->bus_info, sizeof(info->bus_info), "PPC 4xx EMAC-%d %s",
+		 dev->cell_index, dev->ofdev->dev.of_node->full_name);
 	info->regdump_len = emac_ethtool_get_regs_len(ndev);
 }
 
