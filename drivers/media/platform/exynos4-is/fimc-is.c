@@ -129,7 +129,7 @@ static int fimc_is_setup_clocks(struct fimc_is *is)
 					ATCLK_MCUISP_FREQUENCY);
 }
 
-int fimc_is_enable_clocks(struct fimc_is *is)
+static int fimc_is_enable_clocks(struct fimc_is *is)
 {
 	int i, ret;
 
@@ -149,7 +149,7 @@ int fimc_is_enable_clocks(struct fimc_is *is)
 	return 0;
 }
 
-void fimc_is_disable_clocks(struct fimc_is *is)
+static void fimc_is_disable_clocks(struct fimc_is *is)
 {
 	int i;
 
@@ -527,8 +527,8 @@ static void fimc_is_general_irq_handler(struct fimc_is *is)
 			break;
 
 		case HIC_SET_PARAMETER:
-			is->config[is->config_index].p_region_index1 = 0;
-			is->config[is->config_index].p_region_index2 = 0;
+			is->config[is->config_index].p_region_index[0] = 0;
+			is->config[is->config_index].p_region_index[1] = 0;
 			set_bit(IS_ST_BLOCK_CMD_CLEARED, &is->state);
 			pr_debug("HIC_SET_PARAMETER\n");
 			break;
@@ -587,8 +587,8 @@ static void fimc_is_general_irq_handler(struct fimc_is *is)
 
 		switch (is->i2h_cmd.args[0]) {
 		case HIC_SET_PARAMETER:
-			is->config[is->config_index].p_region_index1 = 0;
-			is->config[is->config_index].p_region_index2 = 0;
+			is->config[is->config_index].p_region_index[0] = 0;
+			is->config[is->config_index].p_region_index[1] = 0;
 			set_bit(IS_ST_BLOCK_CMD_CLEARED, &is->state);
 			break;
 		}
@@ -834,22 +834,10 @@ static int fimc_is_probe(struct platform_device *pdev)
 		goto err_clk;
 	}
 	pm_runtime_enable(dev);
-	/*
-	 * Enable only the ISP power domain, keep FIMC-IS clocks off until
-	 * the whole clock tree is configured. The ISP power domain needs
-	 * be active in order to acces any CMU_ISP clock registers.
-	 */
+
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0)
 		goto err_irq;
-
-	ret = fimc_is_setup_clocks(is);
-	pm_runtime_put_sync(dev);
-
-	if (ret < 0)
-		goto err_irq;
-
-	is->clk_init = true;
 
 	is->alloc_ctx = vb2_dma_contig_init_ctx(dev);
 	if (IS_ERR(is->alloc_ctx)) {
@@ -872,6 +860,8 @@ static int fimc_is_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_dfs;
 
+	pm_runtime_put_sync(dev);
+
 	dev_dbg(dev, "FIMC-IS registered successfully\n");
 	return 0;
 
@@ -891,9 +881,11 @@ err_clk:
 static int fimc_is_runtime_resume(struct device *dev)
 {
 	struct fimc_is *is = dev_get_drvdata(dev);
+	int ret;
 
-	if (!is->clk_init)
-		return 0;
+	ret = fimc_is_setup_clocks(is);
+	if (ret)
+		return ret;
 
 	return fimc_is_enable_clocks(is);
 }
@@ -902,9 +894,7 @@ static int fimc_is_runtime_suspend(struct device *dev)
 {
 	struct fimc_is *is = dev_get_drvdata(dev);
 
-	if (is->clk_init)
-		fimc_is_disable_clocks(is);
-
+	fimc_is_disable_clocks(is);
 	return 0;
 }
 
