@@ -22,7 +22,7 @@ struct sched_param {
 #include <linux/errno.h>
 #include <linux/nodemask.h>
 #include <linux/mm_types.h>
-#include <linux/preempt.h>
+#include <linux/preempt_mask.h>
 
 #include <asm/page.h>
 #include <asm/ptrace.h>
@@ -440,8 +440,6 @@ struct task_cputime {
 		.sum_exec_runtime = 0,				\
 	}
 
-#define PREEMPT_ENABLED		(PREEMPT_NEED_RESCHED)
-
 #ifdef CONFIG_PREEMPT_COUNT
 #define PREEMPT_DISABLED	(1 + PREEMPT_ENABLED)
 #else
@@ -831,8 +829,6 @@ struct sched_domain {
 	unsigned int balance_interval;	/* initialise to 1. units in ms. */
 	unsigned int nr_balance_failed; /* initialise to 0 */
 
-	u64 last_update;
-
 	/* idle_balance() stats */
 	u64 max_newidle_lb_cost;
 	unsigned long next_decay_max_lb_cost;
@@ -934,7 +930,8 @@ struct pipe_inode_info;
 struct uts_namespace;
 
 struct load_weight {
-	unsigned long weight, inv_weight;
+	unsigned long weight;
+	u32 inv_weight;
 };
 
 struct sched_avg {

@@ -1671,7 +1671,7 @@ void addrconf_leave_solict(struct inet6_dev *idev, const struct in6_addr *addr)
 static void addrconf_join_anycast(struct inet6_ifaddr *ifp)
 {
 	struct in6_addr addr;
-	if (ifp->prefix_len == 127) /* RFC 6164 */
+	if (ifp->prefix_len >= 127) /* RFC 6164 */
 		return;
 	ipv6_addr_prefix(&addr, &ifp->addr, ifp->prefix_len);
 	if (ipv6_addr_any(&addr))
@@ -1682,7 +1682,7 @@ static void addrconf_join_anycast(struct inet6_ifaddr *ifp)
 static void addrconf_leave_anycast(struct inet6_ifaddr *ifp)
 {
 	struct in6_addr addr;
-	if (ifp->prefix_len == 127) /* RFC 6164 */
+	if (ifp->prefix_len >= 127) /* RFC 6164 */
 		return;
 	ipv6_addr_prefix(&addr, &ifp->addr, ifp->prefix_len);
 	if (ipv6_addr_any(&addr))
@@ -1995,23 +1995,6 @@ static void addrconf_add_mroute(struct net_device *dev)
 
 	ip6_route_add(&cfg);
 }
-
-#if IS_ENABLED(CONFIG_IPV6_SIT)
-static void sit_route_add(struct net_device *dev)
-{
-	struct fib6_config cfg = {
-		.fc_table = RT6_TABLE_MAIN,
-		.fc_metric = IP6_RT_PRIO_ADDRCONF,
-		.fc_ifindex = dev->ifindex,
-		.fc_dst_len = 96,
-		.fc_flags = RTF_UP | RTF_NONEXTHOP,
-		.fc_nlinfo.nl_net = dev_net(dev),
-	};
-
-	/* prefix length - 96 bits "::d.d.d.d" */
-	ip6_route_add(&cfg);
-}
-#endif
 
 static struct inet6_dev *addrconf_add_dev(struct net_device *dev)
 {
@@ -2526,7 +2509,8 @@ static void add_addr(struct inet6_dev *idev, const struct in6_addr *addr,
 	struct inet6_ifaddr *ifp;
 
 	ifp = ipv6_add_addr(idev, addr, NULL, plen,
-			    scope, IFA_F_PERMANENT, 0, 0);
+			    scope, IFA_F_PERMANENT,
+			    INFINITY_LIFE_TIME, INFINITY_LIFE_TIME);
 	if (!IS_ERR(ifp)) {
 		spin_lock_bh(&ifp->lock);
 		ifp->flags &= ~IFA_F_TENTATIVE;
@@ -2542,7 +2526,8 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 	struct in6_addr addr;
 	struct net_device *dev;
 	struct net *net = dev_net(idev->dev);
-	int scope;
+	int scope, plen;
+	u32 pflags = 0;
 
 	ASSERT_RTNL();
 
@@ -2552,12 +2537,16 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 	if (idev->dev->flags&IFF_POINTOPOINT) {
 		addr.s6_addr32[0] = htonl(0xfe800000);
 		scope = IFA_LINK;
+		plen = 64;
 	} else {
 		scope = IPV6_ADDR_COMPATv4;
+		plen = 96;
+		pflags |= RTF_NONEXTHOP;
 	}
 
 	if (addr.s6_addr32[3]) {
-		add_addr(idev, &addr, 128, scope);
+		add_addr(idev, &addr, plen, scope);
+		addrconf_prefix_route(&addr, plen, idev->dev, 0, pflags);
 		return;
 	}
 
@@ -2569,7 +2558,6 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 			int flag = scope;
 
 			for (ifa = in_dev->ifa_list; ifa; ifa = ifa->ifa_next) {
-				int plen;
 
 				addr.s6_addr32[3] = ifa->ifa_local;
 
@@ -2580,12 +2568,10 @@ static void sit_add_v4_addrs(struct inet6_dev *idev)
 						continue;
 					flag |= IFA_HOST;
 				}
-				if (idev->dev->flags&IFF_POINTOPOINT)
-					plen = 64;
-				else
-					plen = 96;
 
 				add_addr(idev, &addr, plen, flag);
+				addrconf_prefix_route(&addr, plen, idev->dev, 0,
+						      pflags);
 			}
 		}
 	}
@@ -2628,7 +2614,7 @@ static void init_loopback(struct net_device *dev)
 			if (sp_ifa->rt)
 				continue;
 
-			sp_rt = addrconf_dst_alloc(idev, &sp_ifa->addr, 0);
+			sp_rt = addrconf_dst_alloc(idev, &sp_ifa->addr, false);
 
 			/* Failure cases are ignored */
 			if (!IS_ERR(sp_rt)) {
@@ -2652,7 +2638,8 @@ static void addrconf_add_linklocal(struct inet6_dev *idev, const struct in6_addr
 #endif
 
 
-	ifp = ipv6_add_addr(idev, addr, NULL, 64, IFA_LINK, addr_flags, 0, 0);
+	ifp = ipv6_add_addr(idev, addr, NULL, 64, IFA_LINK, addr_flags,
+			    INFINITY_LIFE_TIME, INFINITY_LIFE_TIME);
 	if (!IS_ERR(ifp)) {
 		addrconf_prefix_route(&ifp->addr, ifp->prefix_len, idev->dev, 0, 0);
 		addrconf_dad_start(ifp);
@@ -2711,7 +2698,6 @@ static void addrconf_sit_config(struct net_device *dev)
 		struct in6_addr addr;
 
 		ipv6_addr_set(&addr,  htonl(0xFE800000), 0, 0, 0);
-		addrconf_prefix_route(&addr, 64, dev, 0, 0);
 		if (!ipv6_generate_eui64(addr.s6_addr + 8, dev))
 			addrconf_add_linklocal(idev, &addr);
 		return;
@@ -2721,8 +2707,6 @@ static void addrconf_sit_config(struct net_device *dev)
 
 	if (dev->flags&IFF_POINTOPOINT)
 		addrconf_add_mroute(dev);
-	else
-		sit_route_add(dev);
 }
 #endif
 
@@ -2740,8 +2724,6 @@ static void addrconf_gre_config(struct net_device *dev)
 	}
 
 	ipv6_addr_set(&addr,  htonl(0xFE800000), 0, 0, 0);
-	addrconf_prefix_route(&addr, 64, dev, 0, 0);
-
 	if (!ipv6_generate_eui64(addr.s6_addr + 8, dev))
 		addrconf_add_linklocal(idev, &addr);
 }
@@ -3476,7 +3458,12 @@ restart:
 					 &inet6_addr_lst[i], addr_lst) {
 			unsigned long age;
 
-			if (ifp->flags & IFA_F_PERMANENT)
+			/* When setting preferred_lft to a value not zero or
+			 * infinity, while valid_lft is infinity
+			 * IFA_F_PERMANENT has a non-infinity life time.
+			 */
+			if ((ifp->flags & IFA_F_PERMANENT) &&
+			    (ifp->prefered_lft == INFINITY_LIFE_TIME))
 				continue;
 
 			spin_lock(&ifp->lock);
@@ -3501,7 +3488,8 @@ restart:
 					ifp->flags |= IFA_F_DEPRECATED;
 				}
 
-				if (time_before(ifp->tstamp + ifp->valid_lft * HZ, next))
+				if ((ifp->valid_lft != INFINITY_LIFE_TIME) &&
+				    (time_before(ifp->tstamp + ifp->valid_lft * HZ, next)))
 					next = ifp->tstamp + ifp->valid_lft * HZ;
 
 				spin_unlock(&ifp->lock);
@@ -3781,7 +3769,8 @@ static int inet6_fill_ifaddr(struct sk_buff *skb, struct inet6_ifaddr *ifa,
 	put_ifaddrmsg(nlh, ifa->prefix_len, ifa->flags, rt_scope(ifa->scope),
 		      ifa->idev->dev->ifindex);
 
-	if (!(ifa->flags&IFA_F_PERMANENT)) {
+	if (!((ifa->flags&IFA_F_PERMANENT) &&
+	      (ifa->prefered_lft == INFINITY_LIFE_TIME))) {
 		preferred = ifa->prefered_lft;
 		valid = ifa->valid_lft;
 		if (preferred != INFINITY_LIFE_TIME) {

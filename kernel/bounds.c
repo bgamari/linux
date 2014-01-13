@@ -11,7 +11,7 @@
 #include <linux/kbuild.h>
 #include <linux/page_cgroup.h>
 #include <linux/log2.h>
-#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
 
 void foo(void)
 {
@@ -22,6 +22,6 @@ void foo(void)
 #ifdef CONFIG_SMP
 	DEFINE(NR_CPUS_BITS, ilog2(CONFIG_NR_CPUS));
 #endif
-	DEFINE(BLOATED_SPINLOCKS, sizeof(spinlock_t) > sizeof(int));
+	DEFINE(SPINLOCK_SIZE, sizeof(spinlock_t));
 	/* End of constants */
 }

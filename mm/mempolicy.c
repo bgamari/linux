@@ -1197,14 +1197,16 @@ static struct page *new_vma_page(struct page *page, unsigned long private, int *
 			break;
 		vma = vma->vm_next;
 	}
-	/*
-	 * queue_pages_range() confirms that @page belongs to some vma,
-	 * so vma shouldn't be NULL.
-	 */
-	BUG_ON(!vma);
 
-	if (PageHuge(page))
-		return alloc_huge_page_noerr(vma, address, 1);
+	if (PageHuge(page)) {
+		if (vma)
+			return alloc_huge_page_noerr(vma, address, 1);
+		else
+			return NULL;
+	}
+	/*
+	 * if !vma, alloc_page_vma() will use task or system default policy
+	 */
 	return alloc_page_vma(GFP_HIGHUSER_MOVABLE, vma, address);
 }
 #else
@@ -1318,7 +1320,7 @@ static long do_mbind(unsigned long start, unsigned long len,
 		if (nr_failed && (flags & MPOL_MF_STRICT))
 			err = -EIO;
 	} else
-		putback_lru_pages(&pagelist);
+		putback_movable_pages(&pagelist);
 
 	up_write(&mm->mmap_sem);
  mpol_out:
@@ -2950,7 +2952,7 @@ void mpol_to_str(char *buffer, int maxlen, struct mempolicy *pol)
 		return;
 	}
 
-	p += snprintf(p, maxlen, policy_modes[mode]);
+	p += snprintf(p, maxlen, "%s", policy_modes[mode]);
 
 	if (flags & MPOL_MODE_FLAGS) {
 		p += snprintf(p, buffer + maxlen - p, "=");

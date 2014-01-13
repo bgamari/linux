@@ -131,6 +131,7 @@
 #include <linux/static_key.h>
 #include <linux/hashtable.h>
 #include <linux/vmalloc.h>
+#include <linux/if_macvlan.h>
 
 #include "net-sysfs.h"
 
@@ -1424,6 +1425,10 @@ void dev_disable_lro(struct net_device *dev)
 	if (is_vlan_dev(dev))
 		dev = vlan_dev_real_dev(dev);
 
+	/* the same for macvlan devices */
+	if (netif_is_macvlan(dev))
+		dev = macvlan_dev_real_dev(dev);
+
 	dev->wanted_features &= ~NETIF_F_LRO;
 	netdev_update_features(dev);
 
@@ -1690,13 +1695,9 @@ int dev_forward_skb(struct net_device *dev, struct sk_buff *skb)
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}
-	skb->protocol = eth_type_trans(skb, dev);
 
-	/* eth_type_trans() can set pkt_type.
-	 * call skb_scrub_packet() after it to clear pkt_type _after_ calling
-	 * eth_type_trans().
-	 */
 	skb_scrub_packet(skb, true);
+	skb->protocol = eth_type_trans(skb, dev);
 
 	return netif_rx(skb);
 }
@@ -2538,7 +2539,7 @@ static inline int skb_needs_linearize(struct sk_buff *skb,
 }
 
 int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
-			struct netdev_queue *txq, void *accel_priv)
+			struct netdev_queue *txq)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
 	int rc = NETDEV_TX_OK;
@@ -2604,13 +2605,10 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 			dev_queue_xmit_nit(skb, dev);
 
 		skb_len = skb->len;
-		if (accel_priv)
-			rc = ops->ndo_dfwd_start_xmit(skb, dev, accel_priv);
-		else
 			rc = ops->ndo_start_xmit(skb, dev);
 
 		trace_net_dev_xmit(skb, rc, dev, skb_len);
-		if (rc == NETDEV_TX_OK && txq)
+		if (rc == NETDEV_TX_OK)
 			txq_trans_update(txq);
 		return rc;
 	}
@@ -2626,10 +2624,7 @@ gso:
 			dev_queue_xmit_nit(nskb, dev);
 
 		skb_len = nskb->len;
-		if (accel_priv)
-			rc = ops->ndo_dfwd_start_xmit(nskb, dev, accel_priv);
-		else
-			rc = ops->ndo_start_xmit(nskb, dev);
+		rc = ops->ndo_start_xmit(nskb, dev);
 		trace_net_dev_xmit(nskb, rc, dev, skb_len);
 		if (unlikely(rc != NETDEV_TX_OK)) {
 			if (rc & ~NETDEV_TX_MASK)
@@ -2810,7 +2805,7 @@ EXPORT_SYMBOL(dev_loopback_xmit);
  *      the BH enable code must have IRQs enabled so that it will not deadlock.
  *          --BLG
  */
-int dev_queue_xmit(struct sk_buff *skb)
+int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 {
 	struct net_device *dev = skb->dev;
 	struct netdev_queue *txq;
@@ -2826,7 +2821,7 @@ int dev_queue_xmit(struct sk_buff *skb)
 
 	skb_update_prio(skb);
 
-	txq = netdev_pick_tx(dev, skb);
+	txq = netdev_pick_tx(dev, skb, accel_priv);
 	q = rcu_dereference_bh(txq->qdisc);
 
 #ifdef CONFIG_NET_CLS_ACT
@@ -2862,7 +2857,7 @@ int dev_queue_xmit(struct sk_buff *skb)
 
 			if (!netif_xmit_stopped(txq)) {
 				__this_cpu_inc(xmit_recursion);
-				rc = dev_hard_start_xmit(skb, dev, txq, NULL);
+				rc = dev_hard_start_xmit(skb, dev, txq);
 				__this_cpu_dec(xmit_recursion);
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
@@ -2891,7 +2886,18 @@ out:
 	rcu_read_unlock_bh();
 	return rc;
 }
+
+int dev_queue_xmit(struct sk_buff *skb)
+{
+	return __dev_queue_xmit(skb, NULL);
+}
 EXPORT_SYMBOL(dev_queue_xmit);
+
+int dev_queue_xmit_accel(struct sk_buff *skb, void *accel_priv)
+{
+	return __dev_queue_xmit(skb, accel_priv);
+}
+EXPORT_SYMBOL(dev_queue_xmit_accel);
 
 
 /*=======================================================================
@@ -4499,7 +4505,7 @@ struct net_device *netdev_all_upper_get_next_dev_rcu(struct net_device *dev,
 {
 	struct netdev_adjacent *upper;
 
-	WARN_ON_ONCE(!rcu_read_lock_held());
+	WARN_ON_ONCE(!rcu_read_lock_held() && !lockdep_rtnl_is_held());
 
 	upper = list_entry_rcu((*iter)->next, struct netdev_adjacent, list);
 
@@ -4995,7 +5001,7 @@ static void dev_change_rx_flags(struct net_device *dev, int flags)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
 
-	if ((dev->flags & IFF_UP) && ops->ndo_change_rx_flags)
+	if (ops->ndo_change_rx_flags)
 		ops->ndo_change_rx_flags(dev, flags);
 }
 

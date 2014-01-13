@@ -259,6 +259,7 @@ synproxy_recv_client_ack(const struct synproxy_net *snet,
 
 	this_cpu_inc(snet->stats->cookie_valid);
 	opts->mss = mss;
+	opts->options |= XT_SYNPROXY_OPT_MSS;
 
 	if (opts->options & XT_SYNPROXY_OPT_TIMESTAMP)
 		synproxy_check_timestamp_cookie(opts);
@@ -445,6 +446,7 @@ static void synproxy_tg6_destroy(const struct xt_tgdtor_param *par)
 static struct xt_target synproxy_tg6_reg __read_mostly = {
 	.name		= "SYNPROXY",
 	.family		= NFPROTO_IPV6,
+	.hooks		= (1 << NF_INET_LOCAL_IN) | (1 << NF_INET_FORWARD),
 	.target		= synproxy_tg6,
 	.targetsize	= sizeof(struct xt_synproxy_info),
 	.checkentry	= synproxy_tg6_check,

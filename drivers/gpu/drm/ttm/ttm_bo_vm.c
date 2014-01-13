@@ -107,13 +107,28 @@ static int ttm_bo_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	/*
 	 * Work around locking order reversal in fault / nopfn
 	 * between mmap_sem and bo_reserve: Perform a trylock operation
-	 * for reserve, and if it fails, retry the fault after scheduling.
+	 * for reserve, and if it fails, retry the fault after waiting
+	 * for the buffer to become unreserved.
 	 */
-
-	ret = ttm_bo_reserve(bo, true, true, false, 0);
+	ret = ttm_bo_reserve(bo, true, true, false, NULL);
 	if (unlikely(ret != 0)) {
-		if (ret == -EBUSY)
-			set_need_resched();
+		if (ret != -EBUSY)
+			return VM_FAULT_NOPAGE;
+
+		if (vmf->flags & FAULT_FLAG_ALLOW_RETRY) {
+			if (!(vmf->flags & FAULT_FLAG_RETRY_NOWAIT)) {
+				up_read(&vma->vm_mm->mmap_sem);
+				(void) ttm_bo_wait_unreserved(bo);
+			}
+
+			return VM_FAULT_RETRY;
+		}
+
+		/*
+		 * If we'd want to change locking order to
+		 * mmap_sem -> bo::reserve, we'd use a blocking reserve here
+		 * instead of retrying the fault...
+		 */
 		return VM_FAULT_NOPAGE;
 	}
 
@@ -123,7 +138,6 @@ static int ttm_bo_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 		case 0:
 			break;
 		case -EBUSY:
-			set_need_resched();
 		case -ERESTARTSYS:
 			retval = VM_FAULT_NOPAGE;
 			goto out_unlock;
@@ -155,9 +169,9 @@ static int ttm_bo_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	}
 
 	page_offset = ((address - vma->vm_start) >> PAGE_SHIFT) +
-	    drm_vma_node_start(&bo->vma_node) - vma->vm_pgoff;
-	page_last = vma_pages(vma) +
-	    drm_vma_node_start(&bo->vma_node) - vma->vm_pgoff;
+		vma->vm_pgoff - drm_vma_node_start(&bo->vma_node);
+	page_last = vma_pages(vma) + vma->vm_pgoff -
+		drm_vma_node_start(&bo->vma_node);
 
 	if (unlikely(page_offset >= bo->num_pages)) {
 		retval = VM_FAULT_SIGBUS;

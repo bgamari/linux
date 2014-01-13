@@ -16,8 +16,12 @@ ip_default_ttl - INTEGER
 	Default: 64 (as recommended by RFC1700)
 
 ip_no_pmtu_disc - BOOLEAN
-	Disable Path MTU Discovery.
-	default FALSE
+	Disable Path MTU Discovery. If enabled and a
+	fragmentation-required ICMP is received, the PMTU to this
+	destination will be set to min_pmtu (see below). You will need
+	to raise min_pmtu to the smallest interface MTU on your system
+	manually if you want to avoid locally generated fragments.
+	Default: FALSE
 
 min_pmtu - INTEGER
 	default 552 - minimum discovered Path MTU
@@ -577,9 +581,6 @@ tcp_limit_output_bytes - INTEGER
 	typical pfifo_fast qdiscs.
 	tcp_limit_output_bytes limits the number of bytes on qdisc
 	or device to reduce artificial RTT/cwnd and reduce bufferbloat.
-	Note: For GSO/TSO enabled flows, we try to have at least two
-	packets in flight. Reducing tcp_limit_output_bytes might also
-	reduce the size of individual GSO packet (64KB being the max)
 	Default: 131072
 
 tcp_challenge_ack_limit - INTEGER
