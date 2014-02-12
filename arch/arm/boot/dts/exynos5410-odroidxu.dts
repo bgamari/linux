@@ -493,4 +493,24 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&usb3_vbus1_en>, <&usb3_overcur1_u3>, <&usb3_overcur1_u2>;
 	};
+
+	usb_hub_bus {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* SMSC USB3503 connected in hardware-only mode as a PHY */
+		usb_hub: usb_hub {
+			compatible = "smsc,usb3503a";
+
+			reset-gpios = <&gpx1 4 1>;
+			connect-gpios = <&gpx0 6 1>;
+			intn-gpios = <&gpx0 7 1>;
+			/*
+			 * this isn't the actual refclk frequency, but it's
+			 * sufficient to enable the secondary refclk bit.
+			 */
+			refclk-frequency = <24000000>;
+		};
+	};
 };
