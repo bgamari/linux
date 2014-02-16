@@ -17,7 +17,7 @@ be other chips that implement this interface.
 
 The ADT7411 can use an I2C/SMBus compatible 2-wire interface or an
 SPI-compatible 4-wire interface. It provides a 10-bit analog to digital
-converter which measures 1 temperature, vdd and 8 input voltages. It has an
+converter which measures 1 temperature, Vdd and 8 input voltages. It has an
 internal temperature sensor, but an external one can also be connected (one
 loses 2 inputs then). There are high- and low-limit registers for all inputs.
 
@@ -27,16 +27,21 @@ sysfs-Interface
 ---------------
 
 in0_input	- vdd voltage input
-in[1-8]_input	- analog 1-8 input
-temp1_input	- temperature input
+in[1-8]_input	- analog 1-8 inputs
+temp1_input	- internal temperature input
+temp2_input	- external temperature input (if enabled with channel_sel)
 
-Besides standard interfaces, this driver adds (0 = off, 1 = on):
+Besides standard interfaces, this driver adds (0 = off, 1 = on unless
+otherwise noted):
 
   adc_ref_vdd	- Use vdd as reference instead of 2.25 V
   fast_sampling	- Sample at 22.5 kHz instead of 1.4 kHz, but drop filters
   no_average	- Turn off averaging over 16 samples
+  channel_sel   - Select between analog inputs (in1_input and in2_input)
+                  and the external temperature sensor (temp2_input)
+
 
 Notes
 -----
 
-SPI, external temperature sensor and limit registers are not supported yet.
+SPI and limit registers are not supported yet.

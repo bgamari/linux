@@ -7,8 +7,7 @@
  *  it under the terms of the GNU General Public License version 2 as
  *  published by the Free Software Foundation.
  *
- *  TODO: SPI, support for external temperature sensor
- *	  use power-down mode for suspend?, interrupt handling?
+ *  TODO: SPI, use power-down mode for suspend?, interrupt handling?
  */
 
 #include <linux/kernel.h>
@@ -30,6 +29,9 @@
 
 #define ADT7411_REG_CFG1			0x18
 #define ADT7411_CFG1_START_MONITOR		(1 << 0)
+#define ADT7411_CFG1_CHSEL_AIN			(0 << 1)
+#define ADT7411_CFG1_CHSEL_EXT			(2 << 1)
+#define ADT7411_CFG1_CHSEL_MASK		(3 << 1)
 
 #define ADT7411_REG_CFG2			0x19
 #define ADT7411_CFG2_DISABLE_AVG		(1 << 5)
@@ -84,8 +86,8 @@ static int adt7411_read_10_bit(struct i2c_client *client, u8 lsb_reg,
 	return val;
 }
 
-static int adt7411_modify_bit(struct i2c_client *client, u8 reg, u8 bit,
-				bool flag)
+static int adt7411_modify_field(struct i2c_client *client, u8 reg, u8 mask,
+				u8 value)
 {
 	struct adt7411_data *data = i2c_get_clientdata(client);
 	int ret, val;
@@ -96,16 +98,18 @@ static int adt7411_modify_bit(struct i2c_client *client, u8 reg, u8 bit,
 	if (ret < 0)
 		goto exit_unlock;
 
-	if (flag)
-		val = ret | bit;
-	else
-		val = ret & ~bit;
-
+	val = (ret & mask) | value;
 	ret = i2c_smbus_write_byte_data(client, reg, val);
 
  exit_unlock:
 	mutex_unlock(&data->device_lock);
 	return ret;
+}
+
+static int adt7411_modify_bit(struct i2c_client *client, u8 reg, u8 bit,
+				bool flag)
+{
+	return adt7411_modify_field(client, reg, bit, flag ? bit : 0);
 }
 
 static ssize_t adt7411_show_vdd(struct device *dev,
@@ -121,9 +125,21 @@ static ssize_t adt7411_show_vdd(struct device *dev,
 static ssize_t adt7411_show_temp(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
+	struct sensor_device_attribute_2 *s_attr2 = to_sensor_dev_attr_2(attr);
 	struct i2c_client *client = to_i2c_client(dev);
-	int val = adt7411_read_10_bit(client, ADT7411_REG_INT_TEMP_VDD_LSB,
-			ADT7411_REG_INT_TEMP_MSB, 0);
+	int val;
+
+	switch (s_attr2->index) {
+	case 0: /* internal */
+		val = adt7411_read_10_bit(client, ADT7411_REG_INT_TEMP_VDD_LSB,
+					  ADT7411_REG_INT_TEMP_MSB, 0);
+		break;
+	case 1: /* external */
+		val = adt7411_read_10_bit(client,
+					  ADT7411_REG_EXT_TEMP_AIN14_LSB,
+					  ADT7411_REG_EXT_TEMP_AIN1_MSB, 0);
+		break;
+	}
 
 	if (val < 0)
 		return val;
@@ -210,11 +226,64 @@ static ssize_t adt7411_set_bit(struct device *dev,
 	return ret < 0 ? ret : count;
 }
 
+static ssize_t adt7411_set_chsel(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct adt7411_data *data = i2c_get_clientdata(client);
+	int ret;
+	u8 val;
+
+	if (strcmp(buf, "ain\n") == 0) {
+		val = ADT7411_CFG1_CHSEL_AIN;
+	} else if (strcmp(buf, "ext\n") == 0) {
+		val = ADT7411_CFG1_CHSEL_EXT;
+	} else {
+		return -EINVAL;
+	}
+
+	// START_MONITOR is apparently cleared when CHSEL is set
+	ret = adt7411_modify_field(client, ADT7411_REG_CFG1,
+				   ADT7411_CFG1_CHSEL_MASK |
+				   ADT7411_CFG1_START_MONITOR,
+				   val | ADT7411_CFG1_START_MONITOR);
+
+	/* force update */
+	mutex_lock(&data->update_lock);
+	data->next_update = jiffies;
+	mutex_unlock(&data->update_lock);
+
+	return ret < 0 ? ret : count;
+}
+
+static ssize_t adt7411_show_chsel(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	int ret = i2c_smbus_read_byte_data(client, ADT7411_REG_CFG1);
+	if (ret < 0)
+		return ret;
+	ret &= ADT7411_CFG1_CHSEL_MASK;
+	switch (ret) {
+	case ADT7411_CFG1_CHSEL_EXT:
+		strcpy(buf, "ext\n");
+		return 4;
+	case ADT7411_CFG1_CHSEL_AIN:
+		strcpy(buf, "ain\n");
+		return 4;
+	default:
+		dev_err(dev, "Unexpected CHSEL value %02x\n", ret);
+		return -EIO;
+	}
+}
+
 #define ADT7411_BIT_ATTR(__name, __reg, __bit) \
 	SENSOR_DEVICE_ATTR_2(__name, S_IRUGO | S_IWUSR, adt7411_show_bit, \
 	adt7411_set_bit, __bit, __reg)
 
-static DEVICE_ATTR(temp1_input, S_IRUGO, adt7411_show_temp, NULL);
+static SENSOR_DEVICE_ATTR(temp1_input, S_IRUGO, adt7411_show_temp, NULL, 0);
+static SENSOR_DEVICE_ATTR(temp2_input, S_IRUGO, adt7411_show_temp, NULL, 1);
 static DEVICE_ATTR(in0_input, S_IRUGO, adt7411_show_vdd, NULL);
 static SENSOR_DEVICE_ATTR(in1_input, S_IRUGO, adt7411_show_input, NULL, 0);
 static SENSOR_DEVICE_ATTR(in2_input, S_IRUGO, adt7411_show_input, NULL, 1);
@@ -227,9 +296,12 @@ static SENSOR_DEVICE_ATTR(in8_input, S_IRUGO, adt7411_show_input, NULL, 7);
 static ADT7411_BIT_ATTR(no_average, ADT7411_REG_CFG2, ADT7411_CFG2_DISABLE_AVG);
 static ADT7411_BIT_ATTR(fast_sampling, ADT7411_REG_CFG3, ADT7411_CFG3_ADC_CLK_225);
 static ADT7411_BIT_ATTR(adc_ref_vdd, ADT7411_REG_CFG3, ADT7411_CFG3_REF_VDD);
+static SENSOR_DEVICE_ATTR_2(channel_sel, S_IRUGO | S_IWUSR, \
+			    adt7411_show_chsel, adt7411_set_chsel, 0, 0);
 
 static struct attribute *adt7411_attrs[] = {
-	&dev_attr_temp1_input.attr,
+	&sensor_dev_attr_temp1_input.dev_attr.attr,
+	&sensor_dev_attr_temp2_input.dev_attr.attr,
 	&dev_attr_in0_input.attr,
 	&sensor_dev_attr_in1_input.dev_attr.attr,
 	&sensor_dev_attr_in2_input.dev_attr.attr,
@@ -242,6 +314,7 @@ static struct attribute *adt7411_attrs[] = {
 	&sensor_dev_attr_no_average.dev_attr.attr,
 	&sensor_dev_attr_fast_sampling.dev_attr.attr,
 	&sensor_dev_attr_adc_ref_vdd.dev_attr.attr,
+	&sensor_dev_attr_channel_sel.dev_attr.attr,
 	NULL
 };
 
