@@ -692,6 +692,10 @@ static const struct of_device_id exynos_tmu_match[] = {
 		.data = &exynos5260_default_tmu_data,
 	},
 	{
+		.compatible = "samsung,exynos5410-tmu",
+		.data = &exynos5410_default_tmu_data,
+	},
+	{
 		.compatible = "samsung,exynos5420-tmu",
 		.data = &exynos5420_default_tmu_data,
 	},
@@ -791,6 +795,7 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 	case SOC_ARCH_EXYNOS4412:
 	case SOC_ARCH_EXYNOS5250:
 	case SOC_ARCH_EXYNOS5260:
+	case SOC_ARCH_EXYNOS5410:
 	case SOC_ARCH_EXYNOS5420:
 	case SOC_ARCH_EXYNOS5420_TRIMINFO:
 		data->tmu_initialize = exynos4412_tmu_initialize;

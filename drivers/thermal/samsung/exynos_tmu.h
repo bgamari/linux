@@ -40,6 +40,7 @@ enum soc_type {
 	SOC_ARCH_EXYNOS4412,
 	SOC_ARCH_EXYNOS5250,
 	SOC_ARCH_EXYNOS5260,
+	SOC_ARCH_EXYNOS5410,
 	SOC_ARCH_EXYNOS5420,
 	SOC_ARCH_EXYNOS5420_TRIMINFO,
 	SOC_ARCH_EXYNOS5440,
@@ -138,6 +139,7 @@ extern struct exynos_tmu_init_data const exynos4210_default_tmu_data;
 extern struct exynos_tmu_init_data const exynos4412_default_tmu_data;
 extern struct exynos_tmu_init_data const exynos5250_default_tmu_data;
 extern struct exynos_tmu_init_data const exynos5260_default_tmu_data;
+extern struct exynos_tmu_init_data const exynos5410_default_tmu_data;
 extern struct exynos_tmu_init_data const exynos5420_default_tmu_data;
 extern struct exynos_tmu_init_data const exynos5440_default_tmu_data;
 

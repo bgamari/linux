@@ -215,6 +215,20 @@ struct exynos_tmu_init_data const exynos5260_default_tmu_data = {
 	.tmu_count = 5,
 };
 
+#define EXYNOS5410_TMU_DATA \
+	__EXYNOS5260_TMU_DATA \
+	.type = SOC_ARCH_EXYNOS5410
+
+struct exynos_tmu_init_data const exynos5410_default_tmu_data = {
+	.tmu_data = {
+		{ EXYNOS5410_TMU_DATA },
+		{ EXYNOS5410_TMU_DATA },
+		{ EXYNOS5410_TMU_DATA },
+		{ EXYNOS5410_TMU_DATA },
+	},
+	.tmu_count = 4,
+};
+
 #define EXYNOS5420_TMU_DATA \
 	__EXYNOS5260_TMU_DATA \
 	.type = SOC_ARCH_EXYNOS5420
