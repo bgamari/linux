@@ -16,6 +16,7 @@
 #include <linux/clk-provider.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/syscore_ops.h>
 
 #include "clk.h"
 
@@ -59,6 +60,72 @@ enum exynos5410_plls {
 	bpll, kpll,
 	nr_plls                 /* number of PLLs */
 };
+
+static void __iomem *reg_base;
+
+#ifdef CONFIG_PM_SLEEP
+static struct samsung_clk_reg_dump *exynos5410_save;
+
+/*
+ * list of controller registers to be saved and restored during a
+ * suspend/resume cycle.
+ */
+static unsigned long exynos5410_clk_regs[] __initdata = {
+	SRC_CPU,
+	DIV_CPU0,
+	GATE_BUS_FSYS0,
+	SRC_TOP0,
+	SRC_TOP1,
+	SRC_TOP2,
+	SRC_FSYS,
+	DIV_TOP0,
+	DIV_TOP1,
+	DIV_FSYS1,
+	DIV_FSYS2,
+	SRC_MASK_FSYS,
+	SRC_MASK_PERIC0,
+	GATE_IP_FSYS,
+	GATE_IP_PERIS,
+	SRC_CDREX,
+	SRC_KFC,
+	DIV_KFC0,
+};
+
+static int exynos5410_clk_suspend(void)
+{
+	samsung_clk_save(reg_base, exynos5410_save,
+				ARRAY_SIZE(exynos5410_clk_regs));
+	return 0;
+}
+
+static void exynos5410_clk_resume(void)
+{
+	samsung_clk_restore(reg_base, exynos5410_save,
+				ARRAY_SIZE(exynos5410_clk_regs));
+}
+
+static struct syscore_ops exynos5410_clk_syscore_ops = {
+	.suspend = exynos5410_clk_suspend,
+	.resume = exynos5410_clk_resume,
+};
+
+static void exynos5410_clk_sleep_init(void)
+{
+	exynos5410_save = samsung_clk_alloc_reg_dump(exynos5410_clk_regs,
+						ARRAY_SIZE(exynos5410_clk_regs));
+	if (!exynos5410_save)
+		goto err_warn;
+
+	register_syscore_ops(&exynos5410_clk_syscore_ops);
+	return;
+
+err_warn:
+	pr_warn("%s: failed to allocate sleep save data, no sleep support!\n",
+		__func__);
+}
+#else
+static void exynos5410_clk_sleep_init(void) {}
+#endif
 
 /* list of all parent clocks */
 PNAME(apll_p)		= { "fin_pll", "fout_apll", };
@@ -186,7 +253,6 @@ static struct samsung_pll_clock exynos5410_plls[nr_plls] __initdata = {
 static void __init exynos5410_clk_init(struct device_node *np)
 {
 	struct samsung_clk_provider *ctx;
-	void __iomem *reg_base;
 
 	reg_base = of_iomap(np, 0);
 	if (!reg_base)
@@ -203,6 +269,8 @@ static void __init exynos5410_clk_init(struct device_node *np)
 			ARRAY_SIZE(exynos5410_div_clks));
 	samsung_clk_register_gate(ctx, exynos5410_gate_clks,
 			ARRAY_SIZE(exynos5410_gate_clks));
+
+	exynos5410_clk_sleep_init();
 
 	samsung_clk_of_add_provider(np, ctx);
 
