@@ -145,7 +145,7 @@ void blkcg_drain_queue(struct request_queue *q);
 void blkcg_exit_queue(struct request_queue *q);
 
 /* Blkio controller policy registration */
-int blkcg_policy_register(struct blkcg_policy *pol);
+int __init blkcg_policy_register(struct blkcg_policy *pol);
 void blkcg_policy_unregister(struct blkcg_policy *pol);
 int blkcg_activate_policy(struct request_queue *q,
 			  const struct blkcg_policy *pol);
@@ -186,7 +186,7 @@ static inline struct blkcg *css_to_blkcg(struct cgroup_subsys_state *css)
 
 static inline struct blkcg *task_blkcg(struct task_struct *tsk)
 {
-	return css_to_blkcg(task_css(tsk, blkio_subsys_id));
+	return css_to_blkcg(task_css(tsk, blkio_cgrp_id));
 }
 
 static inline struct blkcg *bio_blkcg(struct bio *bio)
@@ -204,7 +204,7 @@ static inline struct blkcg *bio_blkcg(struct bio *bio)
  */
 static inline struct blkcg *blkcg_parent(struct blkcg *blkcg)
 {
-	return css_to_blkcg(css_parent(&blkcg->css));
+	return css_to_blkcg(blkcg->css.parent);
 }
 
 /**
@@ -241,12 +241,16 @@ static inline struct blkcg_gq *pd_to_blkg(struct blkg_policy_data *pd)
  */
 static inline int blkg_path(struct blkcg_gq *blkg, char *buf, int buflen)
 {
-	int ret;
+	char *p;
 
-	ret = cgroup_path(blkg->blkcg->css.cgroup, buf, buflen);
-	if (ret)
+	p = cgroup_path(blkg->blkcg->css.cgroup, buf, buflen);
+	if (!p) {
 		strncpy(buf, "<unavailable>", buflen);
-	return ret;
+		return -ENAMETOOLONG;
+	}
+
+	memmove(buf, p, buf + buflen - p);
+	return 0;
 }
 
 /**
@@ -435,9 +439,9 @@ static inline uint64_t blkg_stat_read(struct blkg_stat *stat)
 	uint64_t v;
 
 	do {
-		start = u64_stats_fetch_begin_bh(&stat->syncp);
+		start = u64_stats_fetch_begin_irq(&stat->syncp);
 		v = stat->cnt;
-	} while (u64_stats_fetch_retry_bh(&stat->syncp, start));
+	} while (u64_stats_fetch_retry_irq(&stat->syncp, start));
 
 	return v;
 }
@@ -508,9 +512,9 @@ static inline struct blkg_rwstat blkg_rwstat_read(struct blkg_rwstat *rwstat)
 	struct blkg_rwstat tmp;
 
 	do {
-		start = u64_stats_fetch_begin_bh(&rwstat->syncp);
+		start = u64_stats_fetch_begin_irq(&rwstat->syncp);
 		tmp = *rwstat;
-	} while (u64_stats_fetch_retry_bh(&rwstat->syncp, start));
+	} while (u64_stats_fetch_retry_irq(&rwstat->syncp, start));
 
 	return tmp;
 }
@@ -576,7 +580,7 @@ static inline struct blkcg_gq *blkg_lookup(struct blkcg *blkcg, void *key) { ret
 static inline int blkcg_init_queue(struct request_queue *q) { return 0; }
 static inline void blkcg_drain_queue(struct request_queue *q) { }
 static inline void blkcg_exit_queue(struct request_queue *q) { }
-static inline int blkcg_policy_register(struct blkcg_policy *pol) { return 0; }
+static inline int __init blkcg_policy_register(struct blkcg_policy *pol) { return 0; }
 static inline void blkcg_policy_unregister(struct blkcg_policy *pol) { }
 static inline int blkcg_activate_policy(struct request_queue *q,
 					const struct blkcg_policy *pol) { return 0; }

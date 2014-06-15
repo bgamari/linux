@@ -144,7 +144,7 @@ extern void elv_drain_elevator(struct request_queue *);
  * io scheduler registration
  */
 extern void __init load_default_elevator_module(void);
-extern int elv_register(struct elevator_type *);
+extern int __init elv_register(struct elevator_type *);
 extern void elv_unregister(struct elevator_type *);
 
 /*
@@ -202,17 +202,8 @@ enum {
 #define rq_end_sector(rq)	(blk_rq_pos(rq) + blk_rq_sectors(rq))
 #define rb_entry_rq(node)	rb_entry((node), struct request, rb_node)
 
-/*
- * Hack to reuse the csd.list list_head as the fifo time holder while
- * the request is in the io scheduler. Saves an unsigned long in rq.
- */
-#define rq_fifo_time(rq)	((unsigned long) (rq)->csd.list.next)
-#define rq_set_fifo_time(rq,exp)	((rq)->csd.list.next = (void *) (exp))
 #define rq_entry_fifo(ptr)	list_entry((ptr), struct request, queuelist)
-#define rq_fifo_clear(rq)	do {		\
-	list_del_init(&(rq)->queuelist);	\
-	INIT_LIST_HEAD(&(rq)->csd.list);	\
-	} while (0)
+#define rq_fifo_clear(rq)	list_del_init(&(rq)->queuelist)
 
 #else /* CONFIG_BLOCK */
 

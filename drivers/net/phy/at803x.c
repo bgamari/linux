@@ -27,6 +27,9 @@
 #define AT803X_MMD_ACCESS_CONTROL		0x0D
 #define AT803X_MMD_ACCESS_CONTROL_DATA		0x0E
 #define AT803X_FUNC_DATA			0x4003
+#define AT803X_INER				0x0012
+#define AT803X_INER_INIT			0xec00
+#define AT803X_INSR				0x0013
 #define AT803X_DEBUG_ADDR			0x1D
 #define AT803X_DEBUG_DATA			0x1E
 #define AT803X_DEBUG_SYSTEM_MODE_CTRL		0x05
@@ -141,41 +144,11 @@ static int at803x_resume(struct phy_device *phydev)
 
 static int at803x_config_init(struct phy_device *phydev)
 {
-	int val;
 	int ret;
-	u32 features;
 
-	features = SUPPORTED_TP | SUPPORTED_MII | SUPPORTED_AUI |
-		   SUPPORTED_FIBRE | SUPPORTED_BNC;
-
-	val = phy_read(phydev, MII_BMSR);
-	if (val < 0)
-		return val;
-
-	if (val & BMSR_ANEGCAPABLE)
-		features |= SUPPORTED_Autoneg;
-	if (val & BMSR_100FULL)
-		features |= SUPPORTED_100baseT_Full;
-	if (val & BMSR_100HALF)
-		features |= SUPPORTED_100baseT_Half;
-	if (val & BMSR_10FULL)
-		features |= SUPPORTED_10baseT_Full;
-	if (val & BMSR_10HALF)
-		features |= SUPPORTED_10baseT_Half;
-
-	if (val & BMSR_ESTATEN) {
-		val = phy_read(phydev, MII_ESTATUS);
-		if (val < 0)
-			return val;
-
-		if (val & ESTATUS_1000_TFULL)
-			features |= SUPPORTED_1000baseT_Full;
-		if (val & ESTATUS_1000_THALF)
-			features |= SUPPORTED_1000baseT_Half;
-	}
-
-	phydev->supported = features;
-	phydev->advertising = features;
+	ret = genphy_config_init(phydev);
+	if (ret < 0)
+		return ret;
 
 	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID) {
 		ret = phy_write(phydev, AT803X_DEBUG_ADDR,
@@ -189,6 +162,31 @@ static int at803x_config_init(struct phy_device *phydev)
 	}
 
 	return 0;
+}
+
+static int at803x_ack_interrupt(struct phy_device *phydev)
+{
+	int err;
+
+	err = phy_read(phydev, AT803X_INSR);
+
+	return (err < 0) ? err : 0;
+}
+
+static int at803x_config_intr(struct phy_device *phydev)
+{
+	int err;
+	int value;
+
+	value = phy_read(phydev, AT803X_INER);
+
+	if (phydev->interrupts == PHY_INTERRUPT_ENABLED)
+		err = phy_write(phydev, AT803X_INER,
+				value | AT803X_INER_INIT);
+	else
+		err = phy_write(phydev, AT803X_INER, 0);
+
+	return err;
 }
 
 static struct phy_driver at803x_driver[] = {
@@ -240,6 +238,8 @@ static struct phy_driver at803x_driver[] = {
 	.flags		= PHY_HAS_INTERRUPT,
 	.config_aneg	= genphy_config_aneg,
 	.read_status	= genphy_read_status,
+	.ack_interrupt  = &at803x_ack_interrupt,
+	.config_intr    = &at803x_config_intr,
 	.driver		= {
 		.owner = THIS_MODULE,
 	},
@@ -253,8 +253,7 @@ static int __init atheros_init(void)
 
 static void __exit atheros_exit(void)
 {
-	return phy_drivers_unregister(at803x_driver,
-				      ARRAY_SIZE(at803x_driver));
+	phy_drivers_unregister(at803x_driver, ARRAY_SIZE(at803x_driver));
 }
 
 module_init(atheros_init);

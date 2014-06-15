@@ -12,7 +12,6 @@
 #include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
-#include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/export.h>
 #include <linux/acpi.h>
@@ -847,6 +846,13 @@ void usb_enable_intel_xhci_ports(struct pci_dev *xhci_pdev)
 	u32		ports_available;
 	bool		ehci_found = false;
 	struct pci_dev	*companion = NULL;
+
+	/* Sony VAIO t-series with subsystem device ID 90a8 is not capable of
+	 * switching ports from EHCI to xHCI
+	 */
+	if (xhci_pdev->subsystem_vendor == PCI_VENDOR_ID_SONY &&
+	    xhci_pdev->subsystem_device == 0x90a8)
+		return;
 
 	/* make sure an intel EHCI controller exists */
 	for_each_pci_dev(companion) {

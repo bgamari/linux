@@ -457,7 +457,7 @@ nve0_domain[] = {
 	{ nv_clk_src_gpc    , 0x00, NVKM_CLK_DOM_FLAG_CORE, "core", 2000 },
 	{ nv_clk_src_hubk07 , 0x01, NVKM_CLK_DOM_FLAG_CORE },
 	{ nv_clk_src_rop    , 0x02, NVKM_CLK_DOM_FLAG_CORE },
-	{ nv_clk_src_mem    , 0x03, 0, "memory", 1000 },
+	{ nv_clk_src_mem    , 0x03, 0, "memory", 500 },
 	{ nv_clk_src_hubk06 , 0x04, NVKM_CLK_DOM_FLAG_CORE },
 	{ nv_clk_src_hubk01 , 0x05 },
 	{ nv_clk_src_vdec   , 0x06 },
@@ -473,7 +473,8 @@ nve0_clock_ctor(struct nouveau_object *parent, struct nouveau_object *engine,
 	struct nve0_clock_priv *priv;
 	int ret;
 
-	ret = nouveau_clock_create(parent, engine, oclass, nve0_domain, &priv);
+	ret = nouveau_clock_create(parent, engine, oclass, nve0_domain, true,
+				   &priv);
 	*pobject = nv_object(priv);
 	if (ret)
 		return ret;
