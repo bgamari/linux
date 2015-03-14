@@ -1196,6 +1196,11 @@ static struct exynos_drm_manager_ops mixer_manager_ops = {
 	.win_disable		= mixer_win_disable,
 };
 
+static struct mixer_drv_data exynos5410_mxr_drv_data = {
+	.version = MXR_VER_16_0_33_0,
+	.is_vp_enabled = 0,
+};
+
 static struct mixer_drv_data exynos5420_mxr_drv_data = {
 	.version = MXR_VER_128_0_0_184,
 	.is_vp_enabled = 0,
@@ -1242,6 +1247,9 @@ static struct of_device_id mixer_match_types[] = {
 	}, {
 		.compatible = "samsung,exynos5250-mixer",
 		.data	= &exynos5250_mxr_drv_data,
+	}, {
+		.compatible = "samsung,exynos5410-mixer",
+		.data	= &exynos5410_mxr_drv_data,
 	}, {
 		.compatible = "samsung,exynos5420-mixer",
 		.data	= &exynos5420_mxr_drv_data,

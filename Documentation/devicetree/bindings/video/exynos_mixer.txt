@@ -6,7 +6,8 @@ Required properties:
 	2) "samsung,exynos4210-mixer"
 	3) "samsung,exynos4212-mixer"
 	4) "samsung,exynos5250-mixer"
-	5) "samsung,exynos5420-mixer"
+	5) "samsung,exynos5410-mixer"
+	6) "samsung,exynos5420-mixer"
 
 - reg: physical base address of the mixer and length of memory mapped
 	region.
