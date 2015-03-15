@@ -15,7 +15,6 @@
 
 #include "skeleton.dtsi"
 #include <dt-bindings/clock/exynos5410.h>
-#include "exynos5410-pinctrl.dtsi"
 
 / {
 	compatible = "samsung,exynos5410", "samsung,exynos5";
@@ -621,3 +620,5 @@
 		};
 	};
 };
+
+#include "exynos5410-pinctrl.dtsi"
