@@ -15,6 +15,7 @@
 */
 
 / {
+    soc {
 	pinctrl@14000000 {
 		gpj0: gpj0 {
 			gpio-controller;
@@ -711,4 +712,5 @@
 			samsung,pin-drv = <0>;
 		};
 	};
+    };
 };
