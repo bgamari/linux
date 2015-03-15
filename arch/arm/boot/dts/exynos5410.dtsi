@@ -500,10 +500,10 @@
 			ranges;
 
 			dwc3 {
-				compatible = "synopsys,dwc3";
+				compatible = "snps,dwc3";
 				reg = <0x12000000 0x10000>;
 				interrupts = <0 72 0>;
-				usb-phy = <&usb2_phy &usb3_phy0>;
+				usb-phy = <&usb2_phy>, <&usb3_phy0>;
 			};
 		};
 
@@ -563,10 +563,10 @@
 			ranges;
 
 			dwc3 {
-				compatible = "synopsys,dwc3";
+				compatible = "snps,dwc3";
 				reg = <0x12400000 0x10000>;
 				interrupts = <0 200 0>;
-				usb-phy = <&usb2_phy &usb3_phy1>;
+				usb-phy = <&usb2_phy>, <&usb3_phy1>;
 			};
 		};
 
