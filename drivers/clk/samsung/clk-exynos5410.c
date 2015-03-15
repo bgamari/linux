@@ -374,9 +374,9 @@ static struct samsung_gate_clock exynos5410_gate_clks[] __initdata = {
 	GATE(CLK_MMC1, "sdmmc1", "aclk200", GATE_BUS_FSYS0, 13, 0, 0),
 	GATE(CLK_MMC2, "sdmmc2", "aclk200", GATE_BUS_FSYS0, 14, 0, 0),
 
-	GATE(CLK_USBH20, "usbh20", "aclk200", GATE_IP_FSYS, 18, 0, 0),
-	GATE(CLK_USBD300, "usbd300", "aclk200", GATE_IP_FSYS, 19, 0, 0),
-	GATE(CLK_USBD301, "usbd301", "aclk200", GATE_IP_FSYS, 20, 0, 0),
+	GATE(CLK_USBH20, "usbh20", "aclk200", GATE_BUS_FSYS0, 18, 0, 0),
+	GATE(CLK_USBD300, "usbd300", "aclk200", GATE_BUS_FSYS0, 19, 0, 0),
+	GATE(CLK_USBD301, "usbd301", "aclk200", GATE_BUS_FSYS0, 20, 0, 0),
 
 	GATE(CLK_UART0, "uart0", "aclk66", GATE_IP_PERIC, 0, 0, 0),
 	GATE(CLK_UART1, "uart1", "aclk66", GATE_IP_PERIC, 1, 0, 0),

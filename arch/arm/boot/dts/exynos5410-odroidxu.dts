@@ -415,21 +415,6 @@
 		pinctrl-0 = <&hdmi_hpd_irq>;
 	};
 
-	/* dw usb3_0 */
-	usb@12000000 {
-		status = "okay";
-		samsung,vbus-gpio = <&gpk3 3 0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb3_vbus0_en>, <&usb3_overcur0_u3>, <&usb3_overcur0_u2>;
-	};
-
-	/* dw usb3_1 */
-	usb@12400000 {
-		samsung,vbus-gpio = <&gpk2 7 0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb3_vbus1_en>, <&usb3_overcur1_u3>, <&usb3_overcur1_u2>;
-	};
-
 	usb_hub_bus {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -528,4 +513,18 @@
 		samsung,pin-pud = <0>;
 		samsung,pin-drv = <0>;
 	};
+};
+
+&usbdrd3_0 {
+	status = "okay";
+	samsung,vbus-gpio = <&gpk3 3 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb3_vbus0_en>, <&usb3_overcur0_u3>, <&usb3_overcur0_u2>;
+};
+
+&usbdrd3_1 {
+	status = "okay";
+	samsung,vbus-gpio = <&gpk2 7 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb3_vbus1_en>, <&usb3_overcur1_u3>, <&usb3_overcur1_u2>;
 };
