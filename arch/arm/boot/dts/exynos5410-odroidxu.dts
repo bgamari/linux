@@ -83,75 +83,6 @@
 			};
 		};
 
-		/* pinctrl0 */
-		pinctrl@13400000 {
-			max77802_irq: max77802-irq {
-				samsung,pins = "gpx0-3";
-				samsung,pin-function = <0>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-			max98090_irq: max98090-irq {
-				samsung,pins = "gpx3-2";
-				samsung,pin-function = <0>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-			hdmi_hpd_irq: hdmi-hpd-irq {
-				samsung,pins = "gpx3-7";
-				samsung,pin-function = <0>;
-				samsung,pin-pud = <1>;
-				samsung,pin-drv = <0>;
-			};
-		};
-
-		/* pinctrl1 */
-		pinctrl@14000000 {
-			/* USB overcurrent pins */
-			usb3_overcur0_u2: usb3-overcur0-u2 {
-				samsung,pins = "gpk3-0";
-				samsung,pin-function = <2>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-
-			usb3_overcur0_u3: usb3-overcur0-u3 {
-				samsung,pins = "gpk3-1";
-				samsung,pin-function = <2>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-
-			usb3_overcur1_u2: usb3-overcur1-u2 {
-				samsung,pins = "gpk2-4";
-				samsung,pin-function = <2>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-
-			usb3_overcur1_u3: usb3-overcur1-u3 {
-				samsung,pins = "gpk2-5";
-				samsung,pin-function = <2>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-
-			/* USB VBUS enable pins */
-			usb3_vbus0_en: usb3-vbus0-en {
-				samsung,pins = "gpk3-3";
-				samsung,pin-function = <2>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-
-			usb3_vbus1_en: usb3-vbus1-en {
-				samsung,pins = "gpk2-7";
-				samsung,pin-function = <2>;
-				samsung,pin-pud = <0>;
-				samsung,pin-drv = <0>;
-			};
-		};
-
 
 		/* i2c1 */
 		i2c@12C70000 {
@@ -530,4 +461,71 @@
 
 &uart2 {
 	status = "okay";
+};
+
+&pinctrl_0 {
+	max77802_irq: max77802-irq {
+		samsung,pins = "gpx0-3";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+	max98090_irq: max98090-irq {
+		samsung,pins = "gpx3-2";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+	hdmi_hpd_irq: hdmi-hpd-irq {
+		samsung,pins = "gpx3-7";
+		samsung,pin-function = <0>;
+		samsung,pin-pud = <1>;
+		samsung,pin-drv = <0>;
+	};
+};
+
+&pinctrl_1 {
+	/* USB overcurrent pins */
+	usb3_overcur0_u2: usb3-overcur0-u2 {
+		samsung,pins = "gpk3-0";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	usb3_overcur0_u3: usb3-overcur0-u3 {
+		samsung,pins = "gpk3-1";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	usb3_overcur1_u2: usb3-overcur1-u2 {
+		samsung,pins = "gpk2-4";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	usb3_overcur1_u3: usb3-overcur1-u3 {
+		samsung,pins = "gpk2-5";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	/* USB VBUS enable pins */
+	usb3_vbus0_en: usb3-vbus0-en {
+		samsung,pins = "gpk3-3";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
+
+	usb3_vbus1_en: usb3-vbus1-en {
+		samsung,pins = "gpk2-7";
+		samsung,pin-function = <2>;
+		samsung,pin-pud = <0>;
+		samsung,pin-drv = <0>;
+	};
 };
