@@ -900,6 +900,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 	sensor_conf = devm_kzalloc(&pdev->dev,
 				sizeof(struct thermal_sensor_conf), GFP_KERNEL);
 	if (!sensor_conf) {
+		dev_err(&pdev->dev, "Failed to allocate thermal_sensor_conf\n");
 		ret = -ENOMEM;
 		goto err_clk;
 	}

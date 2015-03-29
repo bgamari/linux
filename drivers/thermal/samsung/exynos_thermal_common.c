@@ -374,8 +374,10 @@ int exynos_register_thermal(struct thermal_sensor_conf *sensor_conf)
 				dev_err(sensor_conf->dev,
 					"Failed to register cpufreq cooling device: %d\n",
 					ret);
+			dev_err(sensor_conf->dev, "Deferring ben\n");
 			goto err_unregister;
 		}
+		dev_err(sensor_conf->dev, "cool dev size %d\n", th_zone->cool_dev_size);
 		th_zone->cool_dev_size++;
 	}
 
