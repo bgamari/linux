@@ -391,12 +391,66 @@
 	};
 };
 
+// ADCs
 &mcspi3 {
+  status = "okay";
   // Due to BeagleDAQ multiplexer
   ti,spi-num-cs = <4>;
+
+  spidev0: spi@0 {
+    compatible = "spidev";
+    reg = <0>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+  spidev1: spi@1 {
+    compatible = "spidev";
+    reg = <1>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+  spidev2: spi@2 {
+    compatible = "spidev";
+    reg = <2>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+  spidev3: spi@3 {
+    compatible = "spidev";
+    reg = <3>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
 };
 
-&mcspi3 {
+// DACs
+&mcspi4 {
+  status = "okay"
   // Due to BeagleDAQ multiplexer
   ti,spi-num-cs = <4>;
+
+  spidev4: spi@0 {
+    compatible = "spidev";
+    reg = <0>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+  spidev5: spi@1 {
+    compatible = "spidev";
+    reg = <1>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+  spidev6: spi@2 {
+    compatible = "spidev";
+    reg = <2>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+  spidev7: spi@3 {
+    compatible = "spidev";
+    reg = <3>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
 };
