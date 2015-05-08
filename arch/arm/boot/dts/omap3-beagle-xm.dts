@@ -425,7 +425,7 @@
 
 // DACs
 &mcspi4 {
-  status = "okay"
+  status = "okay";
   // Due to BeagleDAQ multiplexer
   ti,spi-num-cs = <4>;
 
