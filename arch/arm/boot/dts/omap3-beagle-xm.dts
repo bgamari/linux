@@ -390,3 +390,13 @@
 		};
 	};
 };
+
+&mcspi3 {
+  // Due to BeagleDAQ multiplexer
+  ti,spi-num-cs = <4>;
+};
+
+&mcspi3 {
+  // Due to BeagleDAQ multiplexer
+  ti,spi-num-cs = <4>;
+};
