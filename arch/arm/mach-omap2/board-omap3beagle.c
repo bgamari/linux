@@ -588,7 +588,7 @@ static struct gpio_chip dac_csmux_chip = {
 int mcspi3_cs_gpios[4];
 int mcspi4_cs_gpios[4];
 
-static void __init beagledaq_init(void)
+static int __init beagledaq_init(void)
 {
 	int i, ret;
 
@@ -636,7 +636,9 @@ static void __init beagledaq_init(void)
 		mcspi3_cs_gpios[i] = adc_csmux_chip.base + i;
 		mcspi4_cs_gpios[i] = dac_csmux_chip.base + i;
 	}
+  return 0;
 }
+omap_device_initcall(beagledaq_init)
 
 static struct usbhs_omap_platform_data usbhs_bdata __initdata = {
 	.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
@@ -738,7 +740,6 @@ static void __init omap3_beagle_init(void)
 	omap_mux_init_signal("sdrc_cke1", OMAP_PIN_OUTPUT);
 
 	pwm_add_table(pwm_lookup, ARRAY_SIZE(pwm_lookup));
-	beagledaq_init();
 }
 
 MACHINE_START(OMAP3_BEAGLE, "OMAP3 Beagle Board")
