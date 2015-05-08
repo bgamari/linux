@@ -37,7 +37,6 @@
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
 #include <linux/spi/spi.h>
-#include <linux/iio/iio.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -49,7 +48,6 @@
 #include <linux/platform_data/mtd-nand-omap2.h>
 #include <linux/platform_data/spi-omap2-mcspi.h>
 #include <linux/platform_data/pca953x.h>
-#include "../../../drivers/staging/iio/adc/ad7606.h"
 
 #include "common.h"
 #include "omap_device.h"
@@ -532,13 +530,6 @@ static int csmux_get(struct gpio_chip *chip, unsigned offset)
 #define BEAGLEDAQ_DAC_CS_EN	161
 #define BEAGLEDAQ_DAC_CS_MUX0	134
 #define BEAGLEDAQ_DAC_CS_MUX1	133
-
-static struct ad7606_platform_data ad7606_pd[4] = {
-	{.gpio_convst = BEAGLEDAQ_CONVSTART},
-	{.gpio_convst = BEAGLEDAQ_CONVSTART},
-	{.gpio_convst = BEAGLEDAQ_CONVSTART},
-	{.gpio_convst = BEAGLEDAQ_CONVSTART},
-};
 
 static void adc_csmux_set(struct gpio_chip *chip, unsigned offset, int value)
 {
