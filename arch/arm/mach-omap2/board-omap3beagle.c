@@ -585,79 +585,6 @@ static struct gpio_chip dac_csmux_chip = {
 	.names = dac_csmux_names,
 };
 
-#define MBIT_SEC 1000000
-static struct spi_board_info beagledaq_mcspi_board_info[] = {
-	// spi 3.0
-	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 3,
-		.chip_select	= 0,
-		.mode		= SPI_MODE_1,
-	},
-	// spi 3.1
-	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 3,
-		.chip_select	= 1,
-		.mode		= SPI_MODE_1,
-	},
-	// spi 3.2
-	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 3,
-		.chip_select	= 2,
-		.mode		= SPI_MODE_1,
-	},
-	// spi 3.3
-	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 3,
-		.chip_select	= 3,
-		.mode		= SPI_MODE_1,
-	},
-
-	// spi 4.0
-	{
-		.modalias = "ad7606-8",
-		.max_speed_hz = 20*MBIT_SEC,
-		.bus_num = 4,
-		.chip_select = 0,
-		.mode		= SPI_MODE_1,
-		.platform_data = &ad7606_pd[0]
-	},
-	// spi 4.1
-	{
-		.modalias = "ad7606-8",
-		.max_speed_hz = 20*MBIT_SEC,
-		.bus_num = 4,
-		.chip_select = 1,
-		.mode		= SPI_MODE_1,
-		.platform_data = &ad7606_pd[1]
-	},
-	// spi 4.2
-	{
-		.modalias = "ad7606-8",
-		.max_speed_hz = 20*MBIT_SEC,
-		.bus_num = 4,
-		.chip_select = 2,
-		.mode		= SPI_MODE_1,
-		.platform_data = &ad7606_pd[2]
-	},
-	// spi 4.3
-	{
-		.modalias	= "ad7606-8",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 4,
-		.chip_select	= 3,
-		.mode		= SPI_MODE_1,
-		.platform_data = &ad7606_pd[3]
-	},
-};
-
 int mcspi3_cs_gpios[4];
 int mcspi4_cs_gpios[4];
 
@@ -709,11 +636,6 @@ static void __init beagledaq_init(void)
 		mcspi3_cs_gpios[i] = adc_csmux_chip.base + i;
 		mcspi4_cs_gpios[i] = dac_csmux_chip.base + i;
 	}
-
-	ret = spi_register_board_info(beagledaq_mcspi_board_info,
-			ARRAY_SIZE(beagledaq_mcspi_board_info));
-	if (ret)
-		printk(KERN_ERR "Failed to register SPI board: %d\n", ret);
 }
 
 static struct usbhs_omap_platform_data usbhs_bdata __initdata = {
