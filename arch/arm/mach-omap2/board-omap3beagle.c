@@ -37,6 +37,7 @@
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
 #include <linux/spi/spi.h>
+#include <linux/iio/iio.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -48,6 +49,7 @@
 #include <linux/platform_data/mtd-nand-omap2.h>
 #include <linux/platform_data/spi-omap2-mcspi.h>
 #include <linux/platform_data/pca953x.h>
+#include "../../../drivers/staging/iio/adc/ad7606.h"
 
 #include "common.h"
 #include "omap_device.h"
@@ -531,6 +533,13 @@ static int csmux_get(struct gpio_chip *chip, unsigned offset)
 #define BEAGLEDAQ_DAC_CS_MUX0	134
 #define BEAGLEDAQ_DAC_CS_MUX1	133
 
+static struct ad7606_platform_data ad7606_pd[4] = {
+	{.gpio_convst = BEAGLEDAQ_CONVSTART},
+	{.gpio_convst = BEAGLEDAQ_CONVSTART},
+	{.gpio_convst = BEAGLEDAQ_CONVSTART},
+	{.gpio_convst = BEAGLEDAQ_CONVSTART},
+};
+
 static void adc_csmux_set(struct gpio_chip *chip, unsigned offset, int value)
 {
 	unsigned int n = offset - chip->base;
@@ -613,35 +622,39 @@ static struct spi_board_info beagledaq_mcspi_board_info[] = {
 
 	// spi 4.0
 	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 4,
-		.chip_select	= 0,
+		.modalias = "ad7606-8",
+		.max_speed_hz = 20*MBIT_SEC,
+		.bus_num = 4,
+		.chip_select = 0,
 		.mode		= SPI_MODE_1,
+		.platform_data = &ad7606_pd[0]
 	},
 	// spi 4.1
 	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 4,
-		.chip_select	= 1,
+		.modalias = "ad7606-8",
+		.max_speed_hz = 20*MBIT_SEC,
+		.bus_num = 4,
+		.chip_select = 1,
 		.mode		= SPI_MODE_1,
+		.platform_data = &ad7606_pd[1]
 	},
 	// spi 4.2
 	{
-		.modalias	= "spidev",
-		.max_speed_hz	= 20*MBIT_SEC,
-		.bus_num	= 4,
-		.chip_select	= 2,
+		.modalias = "ad7606-8",
+		.max_speed_hz = 20*MBIT_SEC,
+		.bus_num = 4,
+		.chip_select = 2,
 		.mode		= SPI_MODE_1,
+		.platform_data = &ad7606_pd[2]
 	},
 	// spi 4.3
 	{
-		.modalias	= "spidev",
+		.modalias	= "ad7606-8",
 		.max_speed_hz	= 20*MBIT_SEC,
 		.bus_num	= 4,
 		.chip_select	= 3,
 		.mode		= SPI_MODE_1,
+		.platform_data = &ad7606_pd[3]
 	},
 };
 
