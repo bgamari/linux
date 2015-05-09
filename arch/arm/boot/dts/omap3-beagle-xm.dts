@@ -454,3 +454,19 @@
     spi-cpha;
   };
 };
+
+spi3_cs_mux_pins: spi3_cs_mux_pins {
+  pinctrl-single,pins = <
+	  0x162 (PIN_OUTPUT | MUX_MODE_4) // sdmmc2_dat3.gpio_135
+	  0x160 (PIN_OUTPUT | MUX_MODE_4) // sdmmc2_dat2.gpio_134
+	  0x15e (PIN_OUTPUT | MUX_MODE_4) // sdmmc2_dat1.gpio_133
+  >;
+};
+
+spi4_cs_mux_pins: spi4_cs_mux_pins {
+  pinctrl-single,pins = <
+	  0x162 (PIN_OUTPUT | MUX_MODE_4) // sdmmc2_dat3.gpio_135
+	  0x160 (PIN_OUTPUT | MUX_MODE_4) // sdmmc2_dat2.gpio_134
+	  0x15e (PIN_OUTPUT | MUX_MODE_4) // sdmmc2_dat1.gpio_133
+  >;
+};
