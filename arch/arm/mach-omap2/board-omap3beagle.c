@@ -23,6 +23,7 @@
 #include <linux/pwm.h>
 #include <linux/leds_pwm.h>
 #include <linux/gpio.h>
+#include <linux/gpio/machine.h>
 #include <linux/input.h>
 #include <linux/gpio_keys.h>
 #include <linux/pm_opp.h>
@@ -36,6 +37,7 @@
 
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
+#include <linux/iio/iio.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -45,6 +47,7 @@
 #include <video/omapdss.h>
 #include <video/omap-panel-data.h>
 #include <linux/platform_data/mtd-nand-omap2.h>
+#include "../../../drivers/staging/iio/adc/ad7606.h"
 
 #include "common.h"
 #include "omap_device.h"
@@ -478,6 +481,41 @@ static struct platform_device *omap3_beagle_devices[] __initdata = {
 	&madc_hwmon,
 	&leds_pwm,
 };
+
+#define BEAGLEDAQ_CONVSTART	113
+#define BEAGLEDAQ_ADC_CS_EN	103
+#define BEAGLEDAQ_ADC_CS_MUX0	125
+#define BEAGLEDAQ_ADC_CS_MUX1	130
+#define BEAGLEDAQ_DAC_CS_EN	129
+#define BEAGLEDAQ_DAC_CS_MUX0	102
+#define BEAGLEDAQ_DAC_CS_MUX1	101
+
+struct gpiod_lookup_table adc_gpios_table = {
+  .dev_id = NULL,
+  .table = {
+    GPIO_LOOKUP("gpio5", 17, "convst", GPIO_ACTIVE_LOW),
+    {},
+  },
+};
+
+static struct ad7606_platform_data ad7606_pd[4] = {};
+
+static int __init beagledaq_init(void)
+{
+  int i;
+  struct gpio_desc *convst;
+  gpiod_add_lookup_table(&adc_gpios_table);
+  convst = gpiod_get(NULL, "convst");
+  if (IS_ERR(convst)) {
+    printk(KERN_ERR "failed to get CONVST pin\n");
+    return PTR_ERR(convst);
+  }
+  for (i=0; i<4; i++) {
+    ad7606_pd[i].gpio_convst = desc_to_gpio(convst);
+  }
+  return 0;
+}
+__initcall(beagledaq_init);
 
 static struct usbhs_omap_platform_data usbhs_bdata __initdata = {
 	.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
