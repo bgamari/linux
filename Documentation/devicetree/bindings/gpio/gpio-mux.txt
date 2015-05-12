@@ -1,0 +1,21 @@
+Multiplexed GPIO output groups
+
+TODO: Discussion
+
+Required properties:
+- compatible:   "gpio-multiplexed"
+- #gpio-cells:		Should be two. The first cell is the pin number
+			and the second cell is used to specify optional
+- #selects:    The number of multiplexer select GPIO lines
+- selector-gpios:    An array of select GPIOs
+- master-gpios:    The GPIO being multiplex.
+	
+
+Example:
+
+    dac_cs_mux: dac_cs_mux {
+        compatible = "gpio,multiplexed";
+        #gpio-cells = <2>;
+        selector-gpios = <&gpio5 1 0>, <&gpio5 2 0>, <&gpio5 3 0>;
+        master-gpio = <&gpio5 0 0>;
+    };

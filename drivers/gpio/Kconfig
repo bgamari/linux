@@ -88,6 +88,14 @@ config GPIO_SYSFS
 config GPIO_GENERIC
 	tristate
 
+config GPIO_MUX
+  bool "Multiplexed GPIO"
+  help
+    Say Y here to add a simple driver for exposing multiplexed GPIO outputs
+    as a GPIO chip.
+
+    This can be useful in the case of multiplexed SPI chip-select lines.
+
 # put drivers in the right section, in alphabetical order
 
 # This symbol is selected by both I2C and SPI expanders
