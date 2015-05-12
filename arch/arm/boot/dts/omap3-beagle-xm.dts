@@ -390,3 +390,145 @@
 		};
 	};
 };
+
+
+/*
+ * SPI chip select multiplexing for BeagleDAQ
+ *
+ * The BeagleDAQ board supports up to 4 ADCs and 4 DACs whereas the BeagleBoard
+ * only provides at most 4 chip selects. We work around this by using a
+ * multiplexing scheme. The chip select lines on the board are produced by two
+ * 1-to-4 multiplexers, each driving 4 devices.
+ *
+ * We register two gpio_chips to expose these multiplexers as GPIOs usable by the
+ * GPIO chip select functionality in the McSPI driver.
+ *
+ * Important: The chip select lines are active low.
+ */
+
+/* ADCs */
+&omap3_pmx_core {
+  spi3_pins: pinmux_spi3_pins {
+    pinctrl-single,pins = <
+      0x128 (PIN_INPUT | MUX_MODE1) /* sdmmc2_clk.mcspi3_clk gpio_130 (adc_spi_sclk) */
+      0x12a (PIN_OUTPUT | MUX_MODE1) /* sdmmc2_cmd.mcspi3_simo gpio_131 (adc_spi_simo) */
+      0x12c (PIN_INPUT_PULLUP | MUX_MODE1) /* sdmmc2_dat0.mcspi3_somi gpio_132 (adc_spi_somi) */
+      0x132 (PIN_OUTPUT | MUX_MODE4) /* sdmmc2_dat3 gpio_135 (adc_spi_cs) */
+      0x15e (PIN_OUTPUT | MUX_MODE4) /* mcbsp1_fsr gpio_157 (adc_spi_addr 0) */
+      0x168 (PIN_OUTPUT | MUX_MODE4) /* mcbsp1_clkx gpio_162 (adc_spi_addr 1) */
+    >;
+  };
+};
+
+adc_cs_mux: adc_cs_mux {
+  compatible = "gpio,multiplexed";
+  #gpio-cells = <2>;
+  selector-gpios = <&gpio5 29 0>, <&gpio6 2 0>;
+  master-gpio = <&gpio5 7 0>;
+};
+
+&mcspi3 {
+  pinctrl-names = "default";
+  pinctrl-0 = <&spi3_pins &adc_pins>;
+  status = "okay";
+  cs-gpios = <&adc_cs_mux 0 0>, <&adc_cs_mux 1 0>, <&adc_cs_mux 2 0>, <&adc_cs_mux 3 0>;
+
+  spidev0: spi@0 {
+    compatible = "spidev";
+    reg = <0>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+  spidev1: spi@1 {
+    compatible = "spidev";
+    reg = <1>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+  spidev2: spi@2 {
+    compatible = "spidev";
+    reg = <2>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+  spidev3: spi@3 {
+    compatible = "spidev";
+    reg = <3>;
+    spi-max-frequency = <20000000>;
+    spi-cpol;
+  };
+};
+
+&omap3_pmx_core {
+  adc_pins: pinmux_adc_pins {
+    pinctrl-single,pins = <
+	    /* Start conversion pin */
+	    0x146 (PIN_OUTPUT | MUX_MODE4) /* uart2_rts.gpio_145 */
+    >;
+  };
+};
+
+/* DACs */
+&omap3_pmx_core {
+  spi4_pins: pinmux_spi4_pins {
+    pinctrl-single,pins = <
+      0x12e (PIN_OUTPUT | MUX_MODE4) /* sdmmc2_dat1 gpio_133 (dac_spi_addr 1)*/
+      0x130 (PIN_OUTPUT | MUX_MODE4) /* sdmmc2_dat2 gpio_134 (dac_spi_addr 0)*/
+      0x15c (PIN_INPUT  | MUX_MODE1) /* mcbsp1_clkr.mcspi4_clk gpio_156 (dac_spi_sclk) */
+      0x160 (PIN_OUTPUT | MUX_MODE1) /* mcbsp1_dx.mcspi4_simo gpio_158 (dac_spi_smio) */
+      0x162 (PIN_INPUT_PULLUP | MUX_MODE1) /* mcbsp1_dr.mcspi4_somi gpio_159 (dac_spi_somi) */
+      0x166 (PIN_OUTPUT | MUX_MODE4) /* mcbsp1_fsx.mcspi4_cs0 gpio_161 (dac_spi_cs) */
+    >;
+  };
+};
+
+dac_cs_mux: dac_cs_mux {
+  compatible = "gpio,multiplexed";
+  #gpio-cells = <2>;
+  selector-gpios = <&gpio5 6 0>, <&gpio5 5 0>;
+  master-gpio = <&gpio6 1 0>;
+};
+
+&mcspi4 {
+  pinctrl-names = "default";
+  pinctrl-0 = <&spi4_pins>;
+  status = "okay";
+  cs-gpios = <&dac_cs_mux 0 0>, <&dac_cs_mux 1 0>, <&dac_cs_mux 2 0>, <&dac_cs_mux 3 0>;
+
+  spidev4: spi@0 {
+    compatible = "spidev";
+    reg = <0>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+  spidev5: spi@1 {
+    compatible = "spidev";
+    reg = <1>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+  spidev6: spi@2 {
+    compatible = "spidev";
+    reg = <2>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+  spidev7: spi@3 {
+    compatible = "spidev";
+    reg = <3>;
+    spi-max-frequency = <20000000>;
+    spi-cpha;
+  };
+};
+
+/* GPIO expander */
+&i2c3 {
+  gpio_expander@20 {
+    compatible = "ti,tca6416";
+    reg = <0x20>;
+    pinctrl-names = "default";
+    pinctrl-0 = <&pinctrl_tca6416>;
+    interrupt-parent = <&gpio5>;
+    interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
+  };
+};
