@@ -420,18 +420,18 @@
   };
 };
 
-adc_cs_mux: adc_cs_mux {
-  compatible = "gpio,multiplexed";
-  #gpio-cells = <2>;
-  selector-gpios = <&gpio5 29 0>, <&gpio6 2 0>;
-  master-gpio = <&gpio5 7 0>;
-};
-
 &mcspi3 {
   pinctrl-names = "default";
   pinctrl-0 = <&spi3_pins &adc_pins>;
   status = "okay";
   cs-gpios = <&adc_cs_mux 0 0>, <&adc_cs_mux 1 0>, <&adc_cs_mux 2 0>, <&adc_cs_mux 3 0>;
+
+  adc_cs_mux: adc_cs_mux {
+    compatible = "gpio,multiplexed";
+    #gpio-cells = <2>;
+    selector-gpios = <&gpio5 29 0>, <&gpio6 2 0>;
+    master-gpio = <&gpio5 7 0>;
+  };
 
   spidev0: spi@0 {
     compatible = "spidev";
@@ -482,18 +482,19 @@ adc_cs_mux: adc_cs_mux {
   };
 };
 
-dac_cs_mux: dac_cs_mux {
-  compatible = "gpio,multiplexed";
-  #gpio-cells = <2>;
-  selector-gpios = <&gpio5 6 0>, <&gpio5 5 0>;
-  master-gpio = <&gpio6 1 0>;
-};
-
 &mcspi4 {
   pinctrl-names = "default";
   pinctrl-0 = <&spi4_pins>;
   status = "okay";
   cs-gpios = <&dac_cs_mux 0 0>, <&dac_cs_mux 1 0>, <&dac_cs_mux 2 0>, <&dac_cs_mux 3 0>;
+
+  dac_cs_mux: dac_cs_mux {
+    compatible = "gpio,multiplexed";
+    #gpio-cells = <2>;
+    selector-gpios = <&gpio5 6 0>, <&gpio5 5 0>;
+    master-gpio = <&gpio6 1 0>;
+  };
+
 
   spidev4: spi@0 {
     compatible = "spidev";
@@ -522,12 +523,20 @@ dac_cs_mux: dac_cs_mux {
 };
 
 /* GPIO expander */
+&omap3_pmx_core {
+  tca6416_pins: tca6416_pins {
+    pinctrl-single,pins = <
+      0x16a (PIN_INPUT | MUX_MODE4) /* sdmmc2_dat7 gpio_139 (expander_irq) */
+    >;
+  };
+};
+
 &i2c3 {
   gpio_expander@20 {
     compatible = "ti,tca6416";
     reg = <0x20>;
     pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_tca6416>;
+    pinctrl-0 = <&tca6416_pins>;
     interrupt-parent = <&gpio5>;
     interrupts = <11 IRQ_TYPE_LEVEL_LOW>;
   };
