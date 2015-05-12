@@ -72,7 +72,7 @@ void gpio_mux_set_value(struct gpio_chip *chip, unsigned offset, int value)
 		gpio_set_value(mux->master, 0);
 		if (offset != mux->active) {
 			if (mux->active != -1) {
-				printk(KERN_WARN "gpio-mux: pin %d set high while pin %d already high",
+				printk(KERN_WARNING "gpio-mux: pin %d set high while pin %d already high",
 							 offset, mux->active);
 			}
 
