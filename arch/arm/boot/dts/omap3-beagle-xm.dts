@@ -438,31 +438,34 @@
 		<&adc_cs_mux 1 0>,
 		<&adc_cs_mux 2 0>,
 		<&adc_cs_mux 3 0>;
-  spi-cs-high;
 
   spidev0: spi@0 {
     compatible = "spidev";
     reg = <0>;
     spi-max-frequency = <20000000>;
     spi-cpol;
+    spi-cs-high;
   };
   spidev1: spi@1 {
     compatible = "spidev";
     reg = <1>;
     spi-max-frequency = <20000000>;
     spi-cpol;
+    spi-cs-high;
   };
   spidev2: spi@2 {
     compatible = "spidev";
     reg = <2>;
     spi-max-frequency = <20000000>;
     spi-cpol;
+    spi-cs-high;
   };
   spidev3: spi@3 {
     compatible = "spidev";
     reg = <3>;
     spi-max-frequency = <20000000>;
     spi-cpol;
+    spi-cs-high;
   };
 };
 
@@ -507,31 +510,34 @@
 		<&dac_cs_mux 1 0>,
 		<&dac_cs_mux 2 0>,
 		<&dac_cs_mux 3 0>;
-  spi-cs-high;
 
   spidev4: spi@0 {
     compatible = "spidev";
     reg = <0>;
     spi-max-frequency = <20000000>;
     spi-cpha;
+    spi-cs-high;
   };
   spidev5: spi@1 {
     compatible = "spidev";
     reg = <1>;
     spi-max-frequency = <20000000>;
     spi-cpha;
+    spi-cs-high;
   };
   spidev6: spi@2 {
     compatible = "spidev";
     reg = <2>;
     spi-max-frequency = <20000000>;
     spi-cpha;
+    spi-cs-high;
   };
   spidev7: spi@3 {
     compatible = "spidev";
     reg = <3>;
     spi-max-frequency = <20000000>;
     spi-cpha;
+    spi-cs-high;
   };
 };
 
