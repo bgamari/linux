@@ -118,6 +118,8 @@ static int gpio_mux_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	mux->active = -1;
+	mux->n_selects = n_selects;
 	mutex_init(&mux->lock);
 
 	mux->master = of_get_named_gpio(node, "master-gpio", 0);
