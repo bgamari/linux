@@ -69,8 +69,6 @@ void gpio_mux_set_value(struct gpio_chip *chip, unsigned offset, int value)
 	struct gpio_mux *mux = (struct gpio_mux *) chip;
 	int i;
 	mutex_lock(&mux->lock);
-	dev_warn(dev, "setting pin %d from %d to %d\n",
-					 offset, mux->active, value);
 	if (value && offset != mux->active) {
 		gpio_set_value(mux->master, 0);
 		if (mux->active != -1) {
