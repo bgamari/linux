@@ -65,22 +65,23 @@ static int gpio_mux_get_value(struct gpio_chip *chip, unsigned offset)
 
 void gpio_mux_set_value(struct gpio_chip *chip, unsigned offset, int value)
 {
+	struct device *dev = chip->dev;
 	struct gpio_mux *mux = (struct gpio_mux *) chip;
 	int i;
 	mutex_lock(&mux->lock);
-	if (value) {
+	dev_warn(dev, "setting pin %d from %d to %d\n",
+					 offset, mux->active, value);
+	if (value && offset != mux->active) {
 		gpio_set_value(mux->master, 0);
-		if (offset != mux->active) {
-			if (mux->active != -1) {
-				printk(KERN_WARNING "gpio-mux: pin %d set high while pin %d already high",
+		if (mux->active != -1) {
+			dev_warn(dev, "pin %d set high while pin %d already high\n",
 							 offset, mux->active);
-			}
-
-			for (i = 0; i < mux->n_selects; i++) {
-				gpio_set_value(mux->master, 1 & (offset >> (mux->n_selects - i)));
-			}
-			mux->active = offset;
 		}
+
+		for (i = 0; i < mux->n_selects; i++) {
+			gpio_set_value(mux->master, 1 & (offset >> (mux->n_selects - i)));
+		}
+		mux->active = offset;
 		gpio_set_value(mux->master, 1);
 	} else {
 		mux->active = -1;
