@@ -106,10 +106,13 @@ static int gpio_mux_probe(struct platform_device *pdev)
 	pdata = match ? match->data : dev_get_platdata(dev);
 	if (!pdata)
 		return -EINVAL;
+	printk(KERN_ERR "gpio-mux: found device\n");
 
 	ret = of_property_read_u32(node, "#gpio-cells", &tmp);
-	if (ret)
+	if (ret) {
+		dev_err(dev, "expected #gpio-cells\n")
 		return ret;
+	}
 
 	n_selects = of_gpio_named_count(node, "selector-gpios");
 	if (n_selects < 0)
@@ -125,11 +128,16 @@ static int gpio_mux_probe(struct platform_device *pdev)
 	mutex_init(&mux->lock);
 
 	mux->master = of_get_named_gpio(node, "master-gpio", 0);
+	if (mux->master < 0) {
+		dev_err(dev, "gpio-mux: failed to get master GPIO\n", i);
+		return -ENODEV;
+	}
+
 	for (i=0; i < n_gpios; i++) {
 		char* name;
 		mux->selects[i] = of_get_named_gpio(node, "selector-gpios", i);
 		if (mux->selects[i] < 0) {
-			printk(KERN_ERR "failed to get bit %d selector GPIO\n", i);
+			dev_err(dev, "failed to get bit %d selector GPIO\n", i);
 			ret = -ENODEV;
 			goto out;
 		}
@@ -142,12 +150,16 @@ static int gpio_mux_probe(struct platform_device *pdev)
 
 		ret = gpio_request(mux->selects[i], name);
 		if (ret < 0) {
+			dev_err("failed to request gpio %d: %d\n",
+							mux->selects[i], ret);
 			kfree(name);
 			goto out;
 		}
 
 		ret = gpio_direction_output(mux->selects[i], 0);
 		if (ret < 0) {
+			dev_err("gpio-mux: failed to set gpio %d to output: %d\n",
+							mux->selects[i], ret);
 			gpio_free(mux->selects[i]);
 			kfree(name);
 			goto out;
@@ -166,7 +178,7 @@ static int gpio_mux_probe(struct platform_device *pdev)
 
 	ret = gpiochip_add(&mux->gpio_chip);
 	if (ret) {
-		printk(KERN_ERR "Failed to register ADC mux: %d\n", ret);
+		dev_err("Failed to register ADC mux: %d\n", ret);
 		goto out;
 	}
 
