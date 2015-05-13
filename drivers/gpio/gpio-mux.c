@@ -130,7 +130,6 @@ static int gpio_mux_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_err(dev, "failed to request gpio %d: %d\n",
 						mux->master, ret);
-		kfree(name);
 		goto out;
 	}
 
@@ -139,7 +138,6 @@ static int gpio_mux_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to set gpio %d to output: %d\n",
 						mux->master, ret);
 		gpio_free(mux->master);
-		kfree(name);
 		goto out;
 	}
 
@@ -149,12 +147,14 @@ static int gpio_mux_probe(struct platform_device *pdev)
 		if (mux->selects[i] < 0) {
 			dev_err(dev, "failed to get bit %d selector GPIO\n", i);
 			ret = -ENODEV;
+			gpio_free(mux->master);
 			goto out;
 		}
 
 		name = kasprintf(GFP_KERNEL, "mux-select%d", i);
 		if (!name) {
 			ret = -ENOMEM;
+			gpio_free(mux->master);
 			goto out;
 		}
 
@@ -163,6 +163,7 @@ static int gpio_mux_probe(struct platform_device *pdev)
 			dev_err(dev, "failed to request gpio %d: %d\n",
 							mux->selects[i], ret);
 			kfree(name);
+			gpio_free(mux->master);
 			goto out;
 		}
 
@@ -171,6 +172,7 @@ static int gpio_mux_probe(struct platform_device *pdev)
 			dev_err(dev, "failed to set gpio %d to output: %d\n",
 							mux->selects[i], ret);
 			gpio_free(mux->selects[i]);
+			gpio_free(mux->master);
 			kfree(name);
 			goto out;
 		}
