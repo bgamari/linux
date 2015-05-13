@@ -420,8 +420,7 @@
   };
 };
 
-// TODO: This shouldn't be in ocp
-&ocp {
+/ {
   adc_cs_mux: adc_cs_mux {
     compatible = "gpio,multiplexed";
     #gpio-cells = <2>;
@@ -485,7 +484,7 @@
   };
 };
 
-&ocp {
+/ {
   dac_cs_mux: dac_cs_mux {
     compatible = "gpio,multiplexed";
     #gpio-cells = <2>;
