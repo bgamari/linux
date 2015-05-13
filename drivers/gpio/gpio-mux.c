@@ -122,8 +122,25 @@ static int gpio_mux_probe(struct platform_device *pdev)
 
 	mux->master = of_get_named_gpio(node, "master-gpio", 0);
 	if (mux->master < 0) {
-		dev_err(dev, "gpio-mux: failed to get master GPIO\n");
+		dev_err(dev, "failed to get master GPIO\n");
 		return -ENODEV;
+	}
+
+	ret = gpio_request(mux->master, "master");
+	if (ret < 0) {
+		dev_err(dev, "failed to request gpio %d: %d\n",
+						mux->master, ret);
+		kfree(name);
+		goto out;
+	}
+
+	ret = gpio_direction_output(mux->master, 0);
+	if (ret < 0) {
+		dev_err(dev, "failed to set gpio %d to output: %d\n",
+						mux->master, ret);
+		gpio_free(mux->master);
+		kfree(name);
+		goto out;
 	}
 
 	for (i=0; i < n_selects; i++) {
@@ -151,7 +168,7 @@ static int gpio_mux_probe(struct platform_device *pdev)
 
 		ret = gpio_direction_output(mux->selects[i], 0);
 		if (ret < 0) {
-			dev_err(dev, "gpio-mux: failed to set gpio %d to output: %d\n",
+			dev_err(dev, "failed to set gpio %d to output: %d\n",
 							mux->selects[i], ret);
 			gpio_free(mux->selects[i]);
 			kfree(name);
