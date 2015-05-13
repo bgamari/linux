@@ -490,28 +490,15 @@ static struct platform_device *omap3_beagle_devices[] __initdata = {
 #define BEAGLEDAQ_DAC_CS_MUX0	102
 #define BEAGLEDAQ_DAC_CS_MUX1	101
 
-struct gpiod_lookup_table adc_gpios_table = {
-  .dev_id = NULL,
-  .table = {
-    GPIO_LOOKUP("gpio5", 17, "convst", GPIO_ACTIVE_LOW),
-    {},
-  },
-};
-
 static struct ad7606_platform_data ad7606_pd[4] = {};
 
 static int __init beagledaq_init(void)
 {
   int i;
-  struct gpio_desc *convst;
-  gpiod_add_lookup_table(&adc_gpios_table);
-  convst = gpiod_get(NULL, "convst");
-  if (IS_ERR(convst)) {
-    printk(KERN_ERR "failed to get CONVST pin\n");
-    return PTR_ERR(convst);
-  }
+  gpio_request_one(113, GPIOF_OUT_INIT_LOW, "ADC conversion start");
+  gpio_export(113, false);
   for (i=0; i<4; i++) {
-    ad7606_pd[i].gpio_convst = desc_to_gpio(convst);
+    ad7606_pd[i].gpio_convst = 113;
   }
   return 0;
 }
