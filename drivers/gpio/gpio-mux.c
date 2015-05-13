@@ -201,6 +201,7 @@ static const struct of_device_id gpio_mux_match[] = {
 	{ .compatible = "gpio,multiplexed", },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, gpio_mux_match);
 
 static struct platform_driver gpio_mux_driver = {
 	.probe = gpio_mux_probe,
@@ -210,18 +211,7 @@ static struct platform_driver gpio_mux_driver = {
 		.of_match_table = of_match_ptr(gpio_mux_match),
 	},
 };
-
-static int __init gpio_mux_init(void)
-{
-	return platform_driver_register(&gpio_mux_driver);
-}
-subsys_initcall(gpio_mux_init);
-
-static void __exit gpio_mux_exit(void)
-{
-	platform_driver_unregister(&gpio_mux_driver);
-}
-module_exit(gpio_mux_exit);
+module_platform_driver(gpio_mux_driver);
 
 MODULE_AUTHOR("Ben Gamari <ben@smart-cactus.org>");
 MODULE_DESCRIPTION("Virtual GPIO chip for multiplexed GPIO groups");
