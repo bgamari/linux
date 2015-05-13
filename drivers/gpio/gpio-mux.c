@@ -95,19 +95,11 @@ static int gpio_mux_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *node = dev->of_node;
-	const struct of_device_id *match;
-	const struct gpio_mux_platform_data *pdata;
 	struct gpio_mux *mux;
 	int ret, i, n_gpios;
 	uint32_t tmp, n_selects;
 
-	match = of_match_device(of_match_ptr(gpio_mux_match), dev);
-
-	pdata = match ? match->data : dev_get_platdata(dev);
-	if (!pdata)
-		return -EINVAL;
 	printk(KERN_ERR "gpio-mux: found device\n");
-
 	ret = of_property_read_u32(node, "#gpio-cells", &tmp);
 	if (ret) {
 		dev_err(dev, "expected #gpio-cells\n");
