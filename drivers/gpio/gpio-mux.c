@@ -125,7 +125,7 @@ static int gpio_mux_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	for (i=0; i < n_gpios; i++) {
+	for (i=0; i < n_selects; i++) {
 		char* name;
 		mux->selects[i] = of_get_named_gpio(node, "selector-gpios", i);
 		if (mux->selects[i] < 0) {
