@@ -19,11 +19,12 @@ static inline int init_new_context(struct task_struct *tsk,
 	atomic_set(&mm->context.attach_count, 0);
 	mm->context.flush_mm = 0;
 	mm->context.asce_bits = _ASCE_TABLE_LENGTH | _ASCE_USER_BITS;
-#ifdef CONFIG_64BIT
 	mm->context.asce_bits |= _ASCE_TYPE_REGION3;
-#endif
+#ifdef CONFIG_PGSTE
+	mm->context.alloc_pgste = page_table_allocate_pgste;
 	mm->context.has_pgste = 0;
 	mm->context.use_skey = 0;
+#endif
 	mm->context.asce_limit = STACK_TOP_MAX;
 	crst_table_init((unsigned long *) mm->pgd, pgd_entry_type(mm));
 	return 0;
@@ -33,10 +34,9 @@ static inline int init_new_context(struct task_struct *tsk,
 
 static inline void set_user_asce(struct mm_struct *mm)
 {
-	pgd_t *pgd = mm->pgd;
-
-	S390_lowcore.user_asce = mm->context.asce_bits | __pa(pgd);
-	set_fs(current->thread.mm_segment);
+	S390_lowcore.user_asce = mm->context.asce_bits | __pa(mm->pgd);
+	if (current->thread.mm_segment.ar4)
+		__ctl_load(S390_lowcore.user_asce, 7, 7);
 	set_cpu_flag(CIF_ASCE);
 }
 
@@ -63,6 +63,7 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 {
 	int cpu = smp_processor_id();
 
+	S390_lowcore.user_asce = next->context.asce_bits | __pa(next->pgd);
 	if (prev == next)
 		return;
 	if (MACHINE_HAS_TLB_LC)
@@ -70,8 +71,6 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	/* Clear old ASCE by loading the kernel ASCE. */
 	__ctl_load(S390_lowcore.kernel_asce, 1, 1);
 	__ctl_load(S390_lowcore.kernel_asce, 7, 7);
-	/* Delay loading of the new ASCE to control registers CR1 & CR7 */
-	set_cpu_flag(CIF_ASCE);
 	atomic_inc(&next->context.attach_count);
 	atomic_dec(&prev->context.attach_count);
 	if (MACHINE_HAS_TLB_LC)
@@ -84,17 +83,18 @@ static inline void finish_arch_post_lock_switch(void)
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
 
-	if (!mm)
-		return;
-	preempt_disable();
-	while (atomic_read(&mm->context.attach_count) >> 16)
-		cpu_relax();
+	load_kernel_asce();
+	if (mm) {
+		preempt_disable();
+		while (atomic_read(&mm->context.attach_count) >> 16)
+			cpu_relax();
 
-	cpumask_set_cpu(smp_processor_id(), mm_cpumask(mm));
-	set_user_asce(mm);
-	if (mm->context.flush_mm)
-		__tlb_flush_mm(mm);
-	preempt_enable();
+		cpumask_set_cpu(smp_processor_id(), mm_cpumask(mm));
+		if (mm->context.flush_mm)
+			__tlb_flush_mm(mm);
+		preempt_enable();
+	}
+	set_fs(current->thread.mm_segment);
 }
 
 #define enter_lazy_tlb(mm,tsk)	do { } while (0)
@@ -111,13 +111,22 @@ static inline void activate_mm(struct mm_struct *prev,
 static inline void arch_dup_mmap(struct mm_struct *oldmm,
 				 struct mm_struct *mm)
 {
-#ifdef CONFIG_64BIT
 	if (oldmm->context.asce_limit < mm->context.asce_limit)
 		crst_table_downgrade(mm, oldmm->context.asce_limit);
-#endif
 }
 
 static inline void arch_exit_mmap(struct mm_struct *mm)
+{
+}
+
+static inline void arch_unmap(struct mm_struct *mm,
+			struct vm_area_struct *vma,
+			unsigned long start, unsigned long end)
+{
+}
+
+static inline void arch_bprm_mm_init(struct mm_struct *mm,
+				     struct vm_area_struct *vma)
 {
 }
 

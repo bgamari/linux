@@ -109,7 +109,6 @@ u32 *dst_cow_metrics_generic(struct dst_entry *dst, unsigned long old);
 extern const u32 dst_default_metrics[];
 
 #define DST_METRICS_READ_ONLY		0x1UL
-#define DST_METRICS_FORCE_OVERWRITE	0x2UL
 #define DST_METRICS_FLAGS		0x3UL
 #define __DST_METRICS_PTR(Y)	\
 	((u32 *)((Y) & ~DST_METRICS_FLAGS))
@@ -118,11 +117,6 @@ extern const u32 dst_default_metrics[];
 static inline bool dst_metrics_read_only(const struct dst_entry *dst)
 {
 	return dst->_metrics & DST_METRICS_READ_ONLY;
-}
-
-static inline void dst_metrics_set_force_overwrite(struct dst_entry *dst)
-{
-	dst->_metrics |= DST_METRICS_FORCE_OVERWRITE;
 }
 
 void __dst_destroy_metrics_generic(struct dst_entry *dst, unsigned long old);
@@ -355,18 +349,6 @@ static inline void skb_tunnel_rx(struct sk_buff *skb, struct net_device *dev,
 	__skb_tunnel_rx(skb, dev, net);
 }
 
-/* Children define the path of the packet through the
- * Linux networking.  Thus, destinations are stackable.
- */
-
-static inline struct dst_entry *skb_dst_pop(struct sk_buff *skb)
-{
-	struct dst_entry *child = dst_clone(skb_dst(skb)->child);
-
-	skb_dst_drop(skb);
-	return child;
-}
-
 int dst_discard_sk(struct sock *sk, struct sk_buff *skb);
 static inline int dst_discard(struct sk_buff *skb)
 {
@@ -480,6 +462,8 @@ void dst_init(void);
 /* Flags for xfrm_lookup flags argument. */
 enum {
 	XFRM_LOOKUP_ICMP = 1 << 0,
+	XFRM_LOOKUP_QUEUE = 1 << 1,
+	XFRM_LOOKUP_KEEP_DST_REF = 1 << 2,
 };
 
 struct flowi;
@@ -490,7 +474,16 @@ static inline struct dst_entry *xfrm_lookup(struct net *net,
 					    int flags)
 {
 	return dst_orig;
-} 
+}
+
+static inline struct dst_entry *xfrm_lookup_route(struct net *net,
+						  struct dst_entry *dst_orig,
+						  const struct flowi *fl,
+						  struct sock *sk,
+						  int flags)
+{
+	return dst_orig;
+}
 
 static inline struct xfrm_state *dst_xfrm(const struct dst_entry *dst)
 {
@@ -501,6 +494,10 @@ static inline struct xfrm_state *dst_xfrm(const struct dst_entry *dst)
 struct dst_entry *xfrm_lookup(struct net *net, struct dst_entry *dst_orig,
 			      const struct flowi *fl, struct sock *sk,
 			      int flags);
+
+struct dst_entry *xfrm_lookup_route(struct net *net, struct dst_entry *dst_orig,
+				    const struct flowi *fl, struct sock *sk,
+				    int flags);
 
 /* skb attached with this dst needs transformation if dst->xfrm is valid */
 static inline struct xfrm_state *dst_xfrm(const struct dst_entry *dst)

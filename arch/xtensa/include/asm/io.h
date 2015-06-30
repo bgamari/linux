@@ -59,6 +59,7 @@ static inline void __iomem *ioremap_cache(unsigned long offset,
 }
 
 #define ioremap_wc ioremap_nocache
+#define ioremap_wt ioremap_nocache
 
 static inline void __iomem *ioremap(unsigned long offset, unsigned long size)
 {
@@ -73,13 +74,6 @@ static inline void iounmap(volatile void __iomem *addr)
 #define bus_to_virt     phys_to_virt
 
 #endif /* CONFIG_MMU */
-
-/*
- * Generic I/O
- */
-#define readb_relaxed readb
-#define readw_relaxed readw
-#define readl_relaxed readl
 
 #endif	/* __KERNEL__ */
 

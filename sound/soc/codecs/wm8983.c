@@ -719,22 +719,22 @@ static int wm8983_hw_params(struct snd_pcm_substream *substream,
 
 	wm8983->bclk = ret;
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
+	switch (params_width(params)) {
+	case 16:
 		blen = 0x0;
 		break;
-	case SNDRV_PCM_FORMAT_S20_3LE:
+	case 20:
 		blen = 0x1;
 		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
+	case 24:
 		blen = 0x2;
 		break;
-	case SNDRV_PCM_FORMAT_S32_LE:
+	case 32:
 		blen = 0x3;
 		break;
 	default:
 		dev_err(dai->dev, "Unsupported word length %u\n",
-			params_format(params));
+			params_width(params));
 		return -EINVAL;
 	}
 
@@ -915,7 +915,7 @@ static int wm8983_set_bias_level(struct snd_soc_codec *codec,
 				    1 << WM8983_VMIDSEL_SHIFT);
 		break;
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
+		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_OFF) {
 			ret = regcache_sync(wm8983->regmap);
 			if (ret < 0) {
 				dev_err(codec->dev, "Failed to sync cache: %d\n", ret);
@@ -963,30 +963,6 @@ static int wm8983_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	}
 
-	codec->dapm.bias_level = level;
-	return 0;
-}
-
-#ifdef CONFIG_PM
-static int wm8983_suspend(struct snd_soc_codec *codec)
-{
-	wm8983_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	return 0;
-}
-
-static int wm8983_resume(struct snd_soc_codec *codec)
-{
-	wm8983_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	return 0;
-}
-#else
-#define wm8983_suspend NULL
-#define wm8983_resume NULL
-#endif
-
-static int wm8983_remove(struct snd_soc_codec *codec)
-{
-	wm8983_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	return 0;
 }
 
@@ -1055,10 +1031,8 @@ static struct snd_soc_dai_driver wm8983_dai = {
 
 static struct snd_soc_codec_driver soc_codec_dev_wm8983 = {
 	.probe = wm8983_probe,
-	.remove = wm8983_remove,
-	.suspend = wm8983_suspend,
-	.resume = wm8983_resume,
 	.set_bias_level = wm8983_set_bias_level,
+	.suspend_bias_off = true,
 	.controls = wm8983_snd_controls,
 	.num_controls = ARRAY_SIZE(wm8983_snd_controls),
 	.dapm_widgets = wm8983_dapm_widgets,

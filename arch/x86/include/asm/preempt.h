@@ -30,9 +30,6 @@ static __always_inline void preempt_count_set(int pc)
 /*
  * must be macros to avoid header recursion hell
  */
-#define task_preempt_count(p) \
-	(task_thread_info(p)->saved_preempt_count & ~PREEMPT_NEED_RESCHED)
-
 #define init_task_preempt_count(p) do { \
 	task_thread_info(p)->saved_preempt_count = PREEMPT_DISABLED; \
 } while (0)
@@ -102,10 +99,9 @@ static __always_inline bool should_resched(void)
   extern asmlinkage void ___preempt_schedule(void);
 # define __preempt_schedule() asm ("call ___preempt_schedule")
   extern asmlinkage void preempt_schedule(void);
-# ifdef CONFIG_CONTEXT_TRACKING
-    extern asmlinkage void ___preempt_schedule_context(void);
-#   define __preempt_schedule_context() asm ("call ___preempt_schedule_context")
-# endif
+  extern asmlinkage void ___preempt_schedule_notrace(void);
+# define __preempt_schedule_notrace() asm ("call ___preempt_schedule_notrace")
+  extern asmlinkage void preempt_schedule_notrace(void);
 #endif
 
 #endif /* __ASM_PREEMPT_H */

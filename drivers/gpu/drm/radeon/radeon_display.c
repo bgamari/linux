@@ -32,6 +32,7 @@
 
 #include <linux/pm_runtime.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_plane_helper.h>
 #include <drm/drm_edid.h>
 
 #include <linux/gcd.h>
@@ -66,7 +67,8 @@ static void avivo_crtc_load_lut(struct drm_crtc *crtc)
 			     (radeon_crtc->lut_b[i] << 0));
 	}
 
-	WREG32(AVIVO_D1GRPH_LUT_SEL + radeon_crtc->crtc_offset, radeon_crtc->crtc_id);
+	/* Only change bit 0 of LUT_SEL, other bits are set elsewhere */
+	WREG32_P(AVIVO_D1GRPH_LUT_SEL + radeon_crtc->crtc_offset, radeon_crtc->crtc_id, ~1);
 }
 
 static void dce4_crtc_load_lut(struct drm_crtc *crtc)
@@ -152,7 +154,7 @@ static void dce5_crtc_load_lut(struct drm_crtc *crtc)
 	       (NI_GRPH_REGAMMA_MODE(NI_REGAMMA_BYPASS) |
 		NI_OVL_REGAMMA_MODE(NI_REGAMMA_BYPASS)));
 	WREG32(NI_OUTPUT_CSC_CONTROL + radeon_crtc->crtc_offset,
-	       (NI_OUTPUT_CSC_GRPH_MODE(NI_OUTPUT_CSC_BYPASS) |
+	       (NI_OUTPUT_CSC_GRPH_MODE(radeon_crtc->output_csc) |
 		NI_OUTPUT_CSC_OVL_MODE(NI_OUTPUT_CSC_BYPASS)));
 	/* XXX match this to the depth of the crtc fmt block, move to modeset? */
 	WREG32(0x6940 + radeon_crtc->crtc_offset, 0);
@@ -284,7 +286,6 @@ static void radeon_unpin_work_func(struct work_struct *__work)
 void radeon_crtc_handle_vblank(struct radeon_device *rdev, int crtc_id)
 {
 	struct radeon_crtc *radeon_crtc = rdev->mode_info.crtcs[crtc_id];
-	struct radeon_flip_work *work;
 	unsigned long flags;
 	u32 update_pending;
 	int vpos, hpos;
@@ -293,9 +294,24 @@ void radeon_crtc_handle_vblank(struct radeon_device *rdev, int crtc_id)
 	if (radeon_crtc == NULL)
 		return;
 
+	/* Skip the pageflip completion check below (based on polling) on
+	 * asics which reliably support hw pageflip completion irqs. pflip
+	 * irqs are a reliable and race-free method of handling pageflip
+	 * completion detection. A use_pflipirq module parameter < 2 allows
+	 * to override this in case of asics with faulty pflip irqs.
+	 * A module parameter of 0 would only use this polling based path,
+	 * a parameter of 1 would use pflip irq only as a backup to this
+	 * path, as in Linux 3.16.
+	 */
+	if ((radeon_use_pflipirq == 2) && ASIC_IS_DCE4(rdev))
+		return;
+
 	spin_lock_irqsave(&rdev->ddev->event_lock, flags);
-	work = radeon_crtc->flip_work;
-	if (work == NULL) {
+	if (radeon_crtc->flip_status != RADEON_FLIP_SUBMITTED) {
+		DRM_DEBUG_DRIVER("radeon_crtc->flip_status = %d != "
+				 "RADEON_FLIP_SUBMITTED(%d)\n",
+				 radeon_crtc->flip_status,
+				 RADEON_FLIP_SUBMITTED);
 		spin_unlock_irqrestore(&rdev->ddev->event_lock, flags);
 		return;
 	}
@@ -343,12 +359,17 @@ void radeon_crtc_handle_flip(struct radeon_device *rdev, int crtc_id)
 
 	spin_lock_irqsave(&rdev->ddev->event_lock, flags);
 	work = radeon_crtc->flip_work;
-	if (work == NULL) {
+	if (radeon_crtc->flip_status != RADEON_FLIP_SUBMITTED) {
+		DRM_DEBUG_DRIVER("radeon_crtc->flip_status = %d != "
+				 "RADEON_FLIP_SUBMITTED(%d)\n",
+				 radeon_crtc->flip_status,
+				 RADEON_FLIP_SUBMITTED);
 		spin_unlock_irqrestore(&rdev->ddev->event_lock, flags);
 		return;
 	}
 
 	/* Pageflip completed. Clean up. */
+	radeon_crtc->flip_status = RADEON_FLIP_NONE;
 	radeon_crtc->flip_work = NULL;
 
 	/* wakeup userspace */
@@ -357,8 +378,8 @@ void radeon_crtc_handle_flip(struct radeon_device *rdev, int crtc_id)
 
 	spin_unlock_irqrestore(&rdev->ddev->event_lock, flags);
 
-	radeon_fence_unref(&work->fence);
-	radeon_irq_kms_pflip_irq_get(rdev, work->crtc_id);
+	drm_vblank_put(rdev->ddev, radeon_crtc->crtc_id);
+	radeon_irq_kms_pflip_irq_put(rdev, work->crtc_id);
 	queue_work(radeon_crtc->flip_queue, &work->unpin_work);
 }
 
@@ -377,51 +398,114 @@ static void radeon_flip_work_func(struct work_struct *__work)
 	struct radeon_crtc *radeon_crtc = rdev->mode_info.crtcs[work->crtc_id];
 
 	struct drm_crtc *crtc = &radeon_crtc->base;
-	struct drm_framebuffer *fb = work->fb;
-
-	uint32_t tiling_flags, pitch_pixels;
-	uint64_t base;
-
 	unsigned long flags;
 	int r;
 
         down_read(&rdev->exclusive_lock);
-	while (work->fence) {
-		r = radeon_fence_wait(work->fence, false);
-		if (r == -EDEADLK) {
-			up_read(&rdev->exclusive_lock);
-			r = radeon_gpu_reset(rdev);
-			down_read(&rdev->exclusive_lock);
-		}
+	if (work->fence) {
+		struct radeon_fence *fence;
 
-		if (r) {
-			DRM_ERROR("failed to wait on page flip fence (%d)!\n",
-				  r);
-			goto cleanup;
+		fence = to_radeon_fence(work->fence);
+		if (fence && fence->rdev == rdev) {
+			r = radeon_fence_wait(fence, false);
+			if (r == -EDEADLK) {
+				up_read(&rdev->exclusive_lock);
+				do {
+					r = radeon_gpu_reset(rdev);
+				} while (r == -EAGAIN);
+				down_read(&rdev->exclusive_lock);
+			}
 		} else
-			radeon_fence_unref(&work->fence);
+			r = fence_wait(work->fence, false);
+
+		if (r)
+			DRM_ERROR("failed to wait on page flip fence (%d)!\n", r);
+
+		/* We continue with the page flip even if we failed to wait on
+		 * the fence, otherwise the DRM core and userspace will be
+		 * confused about which BO the CRTC is scanning out
+		 */
+
+		fence_put(work->fence);
+		work->fence = NULL;
 	}
 
-	/* pin the new buffer */
-	DRM_DEBUG_DRIVER("flip-ioctl() cur_fbo = %p, cur_bbo = %p\n",
-			 work->old_rbo, work->new_rbo);
+	/* We borrow the event spin lock for protecting flip_status */
+	spin_lock_irqsave(&crtc->dev->event_lock, flags);
 
-	r = radeon_bo_reserve(work->new_rbo, false);
+	/* set the proper interrupt */
+	radeon_irq_kms_pflip_irq_get(rdev, radeon_crtc->crtc_id);
+
+	/* do the flip (mmio) */
+	radeon_page_flip(rdev, radeon_crtc->crtc_id, work->base);
+
+	radeon_crtc->flip_status = RADEON_FLIP_SUBMITTED;
+	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
+	up_read(&rdev->exclusive_lock);
+}
+
+static int radeon_crtc_page_flip(struct drm_crtc *crtc,
+				 struct drm_framebuffer *fb,
+				 struct drm_pending_vblank_event *event,
+				 uint32_t page_flip_flags)
+{
+	struct drm_device *dev = crtc->dev;
+	struct radeon_device *rdev = dev->dev_private;
+	struct radeon_crtc *radeon_crtc = to_radeon_crtc(crtc);
+	struct radeon_framebuffer *old_radeon_fb;
+	struct radeon_framebuffer *new_radeon_fb;
+	struct drm_gem_object *obj;
+	struct radeon_flip_work *work;
+	struct radeon_bo *new_rbo;
+	uint32_t tiling_flags, pitch_pixels;
+	uint64_t base;
+	unsigned long flags;
+	int r;
+
+	work = kzalloc(sizeof *work, GFP_KERNEL);
+	if (work == NULL)
+		return -ENOMEM;
+
+	INIT_WORK(&work->flip_work, radeon_flip_work_func);
+	INIT_WORK(&work->unpin_work, radeon_unpin_work_func);
+
+	work->rdev = rdev;
+	work->crtc_id = radeon_crtc->crtc_id;
+	work->event = event;
+
+	/* schedule unpin of the old buffer */
+	old_radeon_fb = to_radeon_framebuffer(crtc->primary->fb);
+	obj = old_radeon_fb->obj;
+
+	/* take a reference to the old object */
+	drm_gem_object_reference(obj);
+	work->old_rbo = gem_to_radeon_bo(obj);
+
+	new_radeon_fb = to_radeon_framebuffer(fb);
+	obj = new_radeon_fb->obj;
+	new_rbo = gem_to_radeon_bo(obj);
+
+	/* pin the new buffer */
+	DRM_DEBUG_DRIVER("flip-ioctl() cur_rbo = %p, new_rbo = %p\n",
+			 work->old_rbo, new_rbo);
+
+	r = radeon_bo_reserve(new_rbo, false);
 	if (unlikely(r != 0)) {
 		DRM_ERROR("failed to reserve new rbo buffer before flip\n");
 		goto cleanup;
 	}
 	/* Only 27 bit offset for legacy CRTC */
-	r = radeon_bo_pin_restricted(work->new_rbo, RADEON_GEM_DOMAIN_VRAM,
+	r = radeon_bo_pin_restricted(new_rbo, RADEON_GEM_DOMAIN_VRAM,
 				     ASIC_IS_AVIVO(rdev) ? 0 : 1 << 27, &base);
 	if (unlikely(r != 0)) {
-		radeon_bo_unreserve(work->new_rbo);
+		radeon_bo_unreserve(new_rbo);
 		r = -EINVAL;
 		DRM_ERROR("failed to pin new rbo buffer before flip\n");
 		goto cleanup;
 	}
-	radeon_bo_get_tiling_flags(work->new_rbo, &tiling_flags, NULL);
-	radeon_bo_unreserve(work->new_rbo);
+	work->fence = fence_get(reservation_object_get_excl(new_rbo->tbo.resv));
+	radeon_bo_get_tiling_flags(new_rbo, &tiling_flags, NULL);
+	radeon_bo_unreserve(new_rbo);
 
 	if (!ASIC_IS_AVIVO(rdev)) {
 		/* crtc offset is from display base addr not FB location */
@@ -458,82 +542,24 @@ static void radeon_flip_work_func(struct work_struct *__work)
 		}
 		base &= ~7;
 	}
+	work->base = base;
+
+	r = drm_vblank_get(crtc->dev, radeon_crtc->crtc_id);
+	if (r) {
+		DRM_ERROR("failed to get vblank before flip\n");
+		goto pflip_cleanup;
+	}
 
 	/* We borrow the event spin lock for protecting flip_work */
 	spin_lock_irqsave(&crtc->dev->event_lock, flags);
 
-	/* set the proper interrupt */
-	radeon_irq_kms_pflip_irq_get(rdev, radeon_crtc->crtc_id);
-
-	/* do the flip (mmio) */
-	radeon_page_flip(rdev, radeon_crtc->crtc_id, base);
-
-	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
-	up_read(&rdev->exclusive_lock);
-
-	return;
-
-cleanup:
-	drm_gem_object_unreference_unlocked(&work->old_rbo->gem_base);
-	radeon_fence_unref(&work->fence);
-	kfree(work);
-	up_read(&rdev->exclusive_lock);
-}
-
-static int radeon_crtc_page_flip(struct drm_crtc *crtc,
-				 struct drm_framebuffer *fb,
-				 struct drm_pending_vblank_event *event,
-				 uint32_t page_flip_flags)
-{
-	struct drm_device *dev = crtc->dev;
-	struct radeon_device *rdev = dev->dev_private;
-	struct radeon_crtc *radeon_crtc = to_radeon_crtc(crtc);
-	struct radeon_framebuffer *old_radeon_fb;
-	struct radeon_framebuffer *new_radeon_fb;
-	struct drm_gem_object *obj;
-	struct radeon_flip_work *work;
-	unsigned long flags;
-
-	work = kzalloc(sizeof *work, GFP_KERNEL);
-	if (work == NULL)
-		return -ENOMEM;
-
-	INIT_WORK(&work->flip_work, radeon_flip_work_func);
-	INIT_WORK(&work->unpin_work, radeon_unpin_work_func);
-
-	work->rdev = rdev;
-	work->crtc_id = radeon_crtc->crtc_id;
-	work->fb = fb;
-	work->event = event;
-
-	/* schedule unpin of the old buffer */
-	old_radeon_fb = to_radeon_framebuffer(crtc->primary->fb);
-	obj = old_radeon_fb->obj;
-
-	/* take a reference to the old object */
-	drm_gem_object_reference(obj);
-	work->old_rbo = gem_to_radeon_bo(obj);
-
-	new_radeon_fb = to_radeon_framebuffer(fb);
-	obj = new_radeon_fb->obj;
-	work->new_rbo = gem_to_radeon_bo(obj);
-
-	spin_lock(&work->new_rbo->tbo.bdev->fence_lock);
-	if (work->new_rbo->tbo.sync_obj)
-		work->fence = radeon_fence_ref(work->new_rbo->tbo.sync_obj);
-	spin_unlock(&work->new_rbo->tbo.bdev->fence_lock);
-
-	/* We borrow the event spin lock for protecting flip_work */
-	spin_lock_irqsave(&crtc->dev->event_lock, flags);
-
-	if (radeon_crtc->flip_work) {
+	if (radeon_crtc->flip_status != RADEON_FLIP_NONE) {
 		DRM_DEBUG_DRIVER("flip queue: crtc already busy\n");
 		spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
-		drm_gem_object_unreference_unlocked(&work->old_rbo->gem_base);
-		radeon_fence_unref(&work->fence);
-		kfree(work);
-		return -EBUSY;
+		r = -EBUSY;
+		goto vblank_cleanup;
 	}
+	radeon_crtc->flip_status = RADEON_FLIP_PENDING;
 	radeon_crtc->flip_work = work;
 
 	/* update crtc fb */
@@ -542,8 +568,26 @@ static int radeon_crtc_page_flip(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 
 	queue_work(radeon_crtc->flip_queue, &work->flip_work);
-
 	return 0;
+
+vblank_cleanup:
+	drm_vblank_put(crtc->dev, radeon_crtc->crtc_id);
+
+pflip_cleanup:
+	if (unlikely(radeon_bo_reserve(new_rbo, false) != 0)) {
+		DRM_ERROR("failed to reserve new rbo in error path\n");
+		goto cleanup;
+	}
+	if (unlikely(radeon_bo_unpin(new_rbo) != 0)) {
+		DRM_ERROR("failed to unpin new rbo in error path\n");
+	}
+	radeon_bo_unreserve(new_rbo);
+
+cleanup:
+	drm_gem_object_unreference_unlocked(&work->old_rbo->gem_base);
+	fence_put(work->fence);
+	kfree(work);
+	return r;
 }
 
 static int
@@ -591,7 +635,7 @@ radeon_crtc_set_config(struct drm_mode_set *set)
 	return ret;
 }
 static const struct drm_crtc_funcs radeon_crtc_funcs = {
-	.cursor_set = radeon_crtc_cursor_set,
+	.cursor_set2 = radeon_crtc_cursor_set2,
 	.cursor_move = radeon_crtc_cursor_move,
 	.gamma_set = radeon_crtc_gamma_set,
 	.set_config = radeon_crtc_set_config,
@@ -797,59 +841,6 @@ static bool radeon_setup_enc_conn(struct drm_device *dev)
 	return ret;
 }
 
-int radeon_ddc_get_modes(struct radeon_connector *radeon_connector)
-{
-	struct drm_device *dev = radeon_connector->base.dev;
-	struct radeon_device *rdev = dev->dev_private;
-	int ret = 0;
-
-	/* on hw with routers, select right port */
-	if (radeon_connector->router.ddc_valid)
-		radeon_router_select_ddc_port(radeon_connector);
-
-	if (radeon_connector_encoder_get_dp_bridge_encoder_id(&radeon_connector->base) !=
-	    ENCODER_OBJECT_ID_NONE) {
-		if (radeon_connector->ddc_bus->has_aux)
-			radeon_connector->edid = drm_get_edid(&radeon_connector->base,
-							      &radeon_connector->ddc_bus->aux.ddc);
-	} else if ((radeon_connector->base.connector_type == DRM_MODE_CONNECTOR_DisplayPort) ||
-		   (radeon_connector->base.connector_type == DRM_MODE_CONNECTOR_eDP)) {
-		struct radeon_connector_atom_dig *dig = radeon_connector->con_priv;
-
-		if ((dig->dp_sink_type == CONNECTOR_OBJECT_ID_DISPLAYPORT ||
-		     dig->dp_sink_type == CONNECTOR_OBJECT_ID_eDP) &&
-		    radeon_connector->ddc_bus->has_aux)
-			radeon_connector->edid = drm_get_edid(&radeon_connector->base,
-							      &radeon_connector->ddc_bus->aux.ddc);
-		else if (radeon_connector->ddc_bus && !radeon_connector->edid)
-			radeon_connector->edid = drm_get_edid(&radeon_connector->base,
-							      &radeon_connector->ddc_bus->adapter);
-	} else {
-		if (radeon_connector->ddc_bus && !radeon_connector->edid)
-			radeon_connector->edid = drm_get_edid(&radeon_connector->base,
-							      &radeon_connector->ddc_bus->adapter);
-	}
-
-	if (!radeon_connector->edid) {
-		if (rdev->is_atom_bios) {
-			/* some laptops provide a hardcoded edid in rom for LCDs */
-			if (((radeon_connector->base.connector_type == DRM_MODE_CONNECTOR_LVDS) ||
-			     (radeon_connector->base.connector_type == DRM_MODE_CONNECTOR_eDP)))
-				radeon_connector->edid = radeon_bios_get_hardcoded_edid(rdev);
-		} else
-			/* some servers provide a hardcoded edid in rom for KVMs */
-			radeon_connector->edid = radeon_bios_get_hardcoded_edid(rdev);
-	}
-	if (radeon_connector->edid) {
-		drm_mode_connector_update_edid_property(&radeon_connector->base, radeon_connector->edid);
-		ret = drm_add_edid_modes(&radeon_connector->base, radeon_connector->edid);
-		drm_edid_to_eld(&radeon_connector->base, radeon_connector->edid);
-		return ret;
-	}
-	drm_mode_connector_update_edid_property(&radeon_connector->base, NULL);
-	return 0;
-}
-
 /* avivo */
 
 /**
@@ -969,6 +960,9 @@ void radeon_compute_pll_avivo(struct radeon_pll *pll,
 	if (pll->flags & RADEON_PLL_USE_FRAC_FB_DIV &&
 	    pll->flags & RADEON_PLL_USE_REF_DIV)
 		ref_div_max = pll->reference_div;
+	else if (pll->flags & RADEON_PLL_PREFER_MINM_OVER_MAXP)
+		/* fix for problems on RS880 */
+		ref_div_max = min(pll->max_ref_div, 7u);
 	else
 		ref_div_max = pll->max_ref_div;
 
@@ -1388,6 +1382,13 @@ static struct drm_prop_enum_list radeon_dither_enum_list[] =
 	{ RADEON_FMT_DITHER_ENABLE, "on" },
 };
 
+static struct drm_prop_enum_list radeon_output_csc_enum_list[] =
+{	{ RADEON_OUTPUT_CSC_BYPASS, "bypass" },
+	{ RADEON_OUTPUT_CSC_TVRGB, "tvrgb" },
+	{ RADEON_OUTPUT_CSC_YCBCR601, "ycbcr601" },
+	{ RADEON_OUTPUT_CSC_YCBCR709, "ycbcr709" },
+};
+
 static int radeon_modeset_create_props(struct radeon_device *rdev)
 {
 	int sz;
@@ -1449,6 +1450,12 @@ static int radeon_modeset_create_props(struct radeon_device *rdev)
 		drm_property_create_enum(rdev->ddev, 0,
 					 "dither",
 					 radeon_dither_enum_list, sz);
+
+	sz = ARRAY_SIZE(radeon_output_csc_enum_list);
+	rdev->mode_info.output_csc_property =
+		drm_property_create_enum(rdev->ddev, 0,
+					 "output_csc",
+					 radeon_output_csc_enum_list, sz);
 
 	return 0;
 }
@@ -1718,7 +1725,7 @@ bool radeon_crtc_scaling_mode_fixup(struct drm_crtc *crtc,
 			    (!(mode->flags & DRM_MODE_FLAG_INTERLACE)) &&
 			    ((radeon_encoder->underscan_type == UNDERSCAN_ON) ||
 			     ((radeon_encoder->underscan_type == UNDERSCAN_AUTO) &&
-			      drm_detect_hdmi_monitor(radeon_connector->edid) &&
+			      drm_detect_hdmi_monitor(radeon_connector_edid(connector)) &&
 			      is_hdtv_mode(mode)))) {
 				if (radeon_encoder->underscan_hborder != 0)
 					radeon_crtc->h_border = radeon_encoder->underscan_hborder;
@@ -1932,7 +1939,7 @@ int radeon_get_crtc_scanoutpos(struct drm_device *dev, int crtc, unsigned int fl
 
 	/* In vblank? */
 	if (in_vbl)
-		ret |= DRM_SCANOUTPOS_INVBL;
+		ret |= DRM_SCANOUTPOS_IN_VBLANK;
 
 	/* Is vpos outside nominal vblank area, but less than
 	 * 1/100 of a frame height away from start of vblank?

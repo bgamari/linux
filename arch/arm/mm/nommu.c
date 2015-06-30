@@ -300,15 +300,7 @@ void __init sanity_check_meminfo(void)
 	sanity_check_meminfo_mpu();
 	end = memblock_end_of_DRAM();
 	high_memory = __va(end - 1) + 1;
-}
-
-/*
- * early_paging_init() recreates boot time page table setup, allowing machines
- * to switch over to a high (>4G) address space on LPAE systems
- */
-void __init early_paging_init(const struct machine_desc *mdesc,
-			      struct proc_info_list *procinfo)
-{
+	memblock_set_current_limit(end);
 }
 
 /*

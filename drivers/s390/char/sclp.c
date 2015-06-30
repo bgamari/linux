@@ -665,7 +665,7 @@ sclp_state_change_cb(struct evbuf_header *evbuf)
 		sclp_send_mask = scbuf->sclp_send_mask;
 	spin_unlock_irqrestore(&sclp_lock, flags);
 	if (scbuf->validity_sclp_active_facility_mask)
-		sclp_facilities = scbuf->sclp_active_facility_mask;
+		sclp.facilities = scbuf->sclp_active_facility_mask;
 	sclp_dispatch_state_change();
 }
 
@@ -1167,7 +1167,6 @@ static const struct attribute_group *sclp_drv_attr_groups[] = {
 static struct platform_driver sclp_pdrv = {
 	.driver = {
 		.name	= "sclp",
-		.owner	= THIS_MODULE,
 		.pm	= &sclp_pm_ops,
 		.groups = sclp_drv_attr_groups,
 	},

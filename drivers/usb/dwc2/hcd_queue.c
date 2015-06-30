@@ -229,19 +229,13 @@ static struct dwc2_qh *dwc2_hcd_qh_create(struct dwc2_hsotg *hsotg,
  */
 void dwc2_hcd_qh_free(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 {
-	u32 buf_size;
-
 	if (hsotg->core_params->dma_desc_enable > 0) {
 		dwc2_hcd_qh_free_ddma(hsotg, qh);
-	} else if (qh->dw_align_buf) {
-		if (qh->ep_type == USB_ENDPOINT_XFER_ISOC)
-			buf_size = 4096;
-		else
-			buf_size = hsotg->core_params->max_transfer_size;
-		dma_free_coherent(hsotg->dev, buf_size, qh->dw_align_buf,
-				  qh->dw_align_buf_dma);
+	} else {
+		/* kfree(NULL) is safe */
+		kfree(qh->dw_align_buf);
+		qh->dw_align_buf_dma = (dma_addr_t)0;
 	}
-
 	kfree(qh);
 }
 
@@ -769,6 +763,7 @@ void dwc2_hcd_qtd_init(struct dwc2_qtd *qtd, struct dwc2_hcd_urb *urb)
 
 /**
  * dwc2_hcd_qtd_add() - Adds a QTD to the QTD-list of a QH
+ *			Caller must hold driver lock.
  *
  * @hsotg:        The DWC HCD structure
  * @qtd:          The QTD to add
@@ -785,7 +780,6 @@ int dwc2_hcd_qtd_add(struct dwc2_hsotg *hsotg, struct dwc2_qtd *qtd,
 		     struct dwc2_qh **qh, gfp_t mem_flags)
 {
 	struct dwc2_hcd_urb *urb = qtd->urb;
-	unsigned long flags;
 	int allocated = 0;
 	int retval;
 
@@ -800,15 +794,12 @@ int dwc2_hcd_qtd_add(struct dwc2_hsotg *hsotg, struct dwc2_qtd *qtd,
 		allocated = 1;
 	}
 
-	spin_lock_irqsave(&hsotg->lock, flags);
-
 	retval = dwc2_hcd_qh_add(hsotg, *qh);
 	if (retval)
 		goto fail;
 
 	qtd->qh = *qh;
 	list_add_tail(&qtd->qtd_list_entry, &(*qh)->qtd_list);
-	spin_unlock_irqrestore(&hsotg->lock, flags);
 
 	return 0;
 
@@ -825,10 +816,7 @@ fail:
 					 qtd_list_entry)
 			dwc2_hcd_qtd_unlink_and_free(hsotg, qtd2, qh_tmp);
 
-		spin_unlock_irqrestore(&hsotg->lock, flags);
 		dwc2_hcd_qh_free(hsotg, qh_tmp);
-	} else {
-		spin_unlock_irqrestore(&hsotg->lock, flags);
 	}
 
 	return retval;

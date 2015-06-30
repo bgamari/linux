@@ -235,7 +235,7 @@ static int twl4030battery_temperature(int raw_volt)
 	if (ret < 0)
 		return ret;
 
-	curr = ((val & TWL4030_BCI_ITHEN) + 1) * 10;
+	curr = ((val & TWL4030_BCI_ITHSENS) + 1) * 10;
 	/* Getting and calculating the thermistor resistance in ohms */
 	res = volt * 1000 / curr;
 	/* calculating temperature */
@@ -645,6 +645,7 @@ int twl4030_get_madc_conversion(int channel_no)
 	req.channels = (1 << channel_no);
 	req.method = TWL4030_MADC_SW2;
 	req.active = 0;
+	req.raw = 0;
 	req.func_cb = NULL;
 	ret = twl4030_madc_conversion(&req);
 	if (ret < 0)
@@ -661,10 +662,8 @@ EXPORT_SYMBOL_GPL(twl4030_get_madc_conversion);
  *
  * @madc:	pointer to twl4030_madc_data struct
  * @chan:	can be one of the two values:
- *		TWL4030_BCI_ITHEN
- *		Enables bias current for main battery type reading
- *		TWL4030_BCI_TYPEN
- *		Enables bias current for main battery temperature sensing
+ *		0 - Enables bias current for main battery type reading
+ *		1 - Enables bias current for main battery temperature sensing
  * @on:		enable or disable chan.
  *
  * Function to enable or disable bias current for
@@ -882,7 +881,6 @@ static struct platform_driver twl4030_madc_driver = {
 	.remove = twl4030_madc_remove,
 	.driver = {
 		   .name = "twl4030_madc",
-		   .owner = THIS_MODULE,
 		   .of_match_table = of_match_ptr(twl_madc_of_match),
 	},
 };

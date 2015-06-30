@@ -219,7 +219,7 @@ static int handle_one_vic(struct vic_device *vic, struct pt_regs *regs)
 
 	while ((stat = readl_relaxed(vic->base + VIC_IRQ_STATUS))) {
 		irq = ffs(stat) - 1;
-		handle_IRQ(irq_find_mapping(vic->domain, irq), regs);
+		handle_domain_irq(vic->domain, irq, regs);
 		handled = 1;
 	}
 
@@ -256,7 +256,7 @@ static void __exception_irq_entry vic_handle_irq(struct pt_regs *regs)
 	} while (handled);
 }
 
-static struct irq_domain_ops vic_irqdomain_ops = {
+static const struct irq_domain_ops vic_irqdomain_ops = {
 	.map = vic_irqdomain_map,
 	.xlate = irq_domain_xlate_onetwocell,
 };

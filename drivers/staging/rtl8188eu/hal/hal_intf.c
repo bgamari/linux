@@ -156,15 +156,6 @@ void rtw_hal_set_odm_var(struct adapter *adapt,
 						      val1, set);
 }
 
-void rtw_hal_get_odm_var(struct adapter *adapt,
-			 enum hal_odm_variable var, void *val1,
-			 bool set)
-{
-	if (adapt->HalFunc.GetHalODMVarHandler)
-		adapt->HalFunc.GetHalODMVarHandler(adapt, var,
-						      val1, set);
-}
-
 void rtw_hal_enable_interrupt(struct adapter *adapt)
 {
 	if (adapt->HalFunc.enable_interrupt)
@@ -211,6 +202,7 @@ s32 rtw_hal_xmit(struct adapter *adapt, struct xmit_frame *pxmitframe)
 s32 rtw_hal_mgnt_xmit(struct adapter *adapt, struct xmit_frame *pmgntframe)
 {
 	s32 ret = _FAIL;
+
 	if (adapt->HalFunc.mgnt_xmit)
 		ret = adapt->HalFunc.mgnt_xmit(adapt, pmgntframe);
 	return ret;
@@ -221,12 +213,6 @@ s32 rtw_hal_init_xmit_priv(struct adapter *adapt)
 	if (adapt->HalFunc.init_xmit_priv != NULL)
 		return adapt->HalFunc.init_xmit_priv(adapt);
 	return _FAIL;
-}
-
-void rtw_hal_free_xmit_priv(struct adapter *adapt)
-{
-	if (adapt->HalFunc.free_xmit_priv != NULL)
-		adapt->HalFunc.free_xmit_priv(adapt);
 }
 
 s32 rtw_hal_init_recv_priv(struct adapter *adapt)
@@ -251,6 +237,7 @@ void rtw_hal_update_ra_mask(struct adapter *adapt, u32 mac_id, u8 rssi_level)
 #ifdef CONFIG_88EU_AP_MODE
 		struct sta_info *psta = NULL;
 		struct sta_priv *pstapriv = &adapt->stapriv;
+
 		if ((mac_id-1) > 0)
 			psta = pstapriv->sta_aid[(mac_id-1) - 1];
 		if (psta)
@@ -271,36 +258,6 @@ void rtw_hal_add_ra_tid(struct adapter *adapt, u32 bitmap, u8 arg,
 					       rssi_level);
 }
 
-/*	Start specifical interface thread		*/
-void rtw_hal_start_thread(struct adapter *adapt)
-{
-	if (adapt->HalFunc.run_thread)
-		adapt->HalFunc.run_thread(adapt);
-}
-
-/*	Start specifical interface thread		*/
-void rtw_hal_stop_thread(struct adapter *adapt)
-{
-	if (adapt->HalFunc.cancel_thread)
-		adapt->HalFunc.cancel_thread(adapt);
-}
-
-u32 rtw_hal_read_bbreg(struct adapter *adapt, u32 regaddr, u32 bitmask)
-{
-	u32 data = 0;
-
-	if (adapt->HalFunc.read_bbreg)
-		data = adapt->HalFunc.read_bbreg(adapt, regaddr, bitmask);
-	return data;
-}
-
-void rtw_hal_write_bbreg(struct adapter *adapt, u32 regaddr, u32 bitmask,
-			 u32 data)
-{
-	if (adapt->HalFunc.write_bbreg)
-		adapt->HalFunc.write_bbreg(adapt, regaddr, bitmask, data);
-}
-
 u32 rtw_hal_read_rfreg(struct adapter *adapt, enum rf_radio_path rfpath,
 		       u32 regaddr, u32 bitmask)
 {
@@ -318,13 +275,6 @@ void rtw_hal_write_rfreg(struct adapter *adapt, enum rf_radio_path rfpath,
 	if (adapt->HalFunc.write_rfreg)
 		adapt->HalFunc.write_rfreg(adapt, rfpath, regaddr,
 					      bitmask, data);
-}
-
-s32 rtw_hal_interrupt_handler(struct adapter *adapt)
-{
-	if (adapt->HalFunc.interrupt_handler)
-		return adapt->HalFunc.interrupt_handler(adapt);
-	return _FAIL;
 }
 
 void rtw_hal_set_bwmode(struct adapter *adapt,
@@ -374,49 +324,6 @@ void rtw_hal_sreset_init(struct adapter *adapt)
 		adapt->HalFunc.sreset_init_value(adapt);
 }
 
-void rtw_hal_sreset_reset(struct adapter *adapt)
-{
-	if (adapt->HalFunc.silentreset)
-		adapt->HalFunc.silentreset(adapt);
-}
-
-void rtw_hal_sreset_reset_value(struct adapter *adapt)
-{
-	if (adapt->HalFunc.sreset_reset_value)
-		adapt->HalFunc.sreset_reset_value(adapt);
-}
-
-void rtw_hal_sreset_xmit_status_check(struct adapter *adapt)
-{
-	if (adapt->HalFunc.sreset_xmit_status_check)
-		adapt->HalFunc.sreset_xmit_status_check(adapt);
-}
-
-void rtw_hal_sreset_linked_status_check(struct adapter *adapt)
-{
-	if (adapt->HalFunc.sreset_linked_status_check)
-		adapt->HalFunc.sreset_linked_status_check(adapt);
-}
-
-u8   rtw_hal_sreset_get_wifi_status(struct adapter *adapt)
-{
-	u8 status = 0;
-
-	if (adapt->HalFunc.sreset_get_wifi_status)
-		status = adapt->HalFunc.sreset_get_wifi_status(adapt);
-	return status;
-}
-
-int rtw_hal_iol_cmd(struct adapter  *adapter, struct xmit_frame *xmit_frame,
-		    u32 max_wating_ms, u32 bndy_cnt)
-{
-	if (adapter->HalFunc.IOL_exec_cmds_sync)
-		return adapter->HalFunc.IOL_exec_cmds_sync(adapter, xmit_frame,
-							   max_wating_ms,
-							   bndy_cnt);
-	return _FAIL;
-}
-
 void rtw_hal_notch_filter(struct adapter *adapter, bool enable)
 {
 	if (adapter->HalFunc.hal_notch_filter)
@@ -427,18 +334,4 @@ void rtw_hal_reset_security_engine(struct adapter *adapter)
 {
 	if (adapter->HalFunc.hal_reset_security_engine)
 		adapter->HalFunc.hal_reset_security_engine(adapter);
-}
-
-s32 rtw_hal_c2h_handler(struct adapter *adapter, struct c2h_evt_hdr *c2h_evt)
-{
-	s32 ret = _FAIL;
-
-	if (adapter->HalFunc.c2h_handler)
-		ret = adapter->HalFunc.c2h_handler(adapter, c2h_evt);
-	return ret;
-}
-
-c2h_id_filter rtw_hal_c2h_id_filter_ccx(struct adapter *adapter)
-{
-	return adapter->HalFunc.c2h_id_filter_ccx;
 }

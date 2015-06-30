@@ -10,6 +10,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/sysfs.h>
@@ -82,9 +83,9 @@ static ssize_t elog_ack_store(struct elog_obj *elog_obj,
 }
 
 static struct elog_attribute id_attribute =
-	__ATTR(id, 0666, elog_id_show, NULL);
+	__ATTR(id, S_IRUGO, elog_id_show, NULL);
 static struct elog_attribute type_attribute =
-	__ATTR(type, 0666, elog_type_show, NULL);
+	__ATTR(type, S_IRUGO, elog_type_show, NULL);
 static struct elog_attribute ack_attribute =
 	__ATTR(acknowledge, 0660, elog_ack_show, elog_ack_store);
 
@@ -249,7 +250,7 @@ static void elog_work_fn(struct work_struct *work)
 
 	rc = opal_get_elog_size(&id, &size, &type);
 	if (rc != OPAL_SUCCESS) {
-		pr_err("ELOG: Opal log read failed\n");
+		pr_err("ELOG: OPAL log info read failed\n");
 		return;
 	}
 
@@ -257,7 +258,7 @@ static void elog_work_fn(struct work_struct *work)
 	log_id = be64_to_cpu(id);
 	elog_type = be64_to_cpu(type);
 
-	BUG_ON(elog_size > OPAL_MAX_ERRLOG_SIZE);
+	WARN_ON(elog_size > OPAL_MAX_ERRLOG_SIZE);
 
 	if (elog_size >= OPAL_MAX_ERRLOG_SIZE)
 		elog_size  =  OPAL_MAX_ERRLOG_SIZE;
@@ -276,24 +277,19 @@ static void elog_work_fn(struct work_struct *work)
 
 static DECLARE_WORK(elog_work, elog_work_fn);
 
-static int elog_event(struct notifier_block *nb,
-				unsigned long events, void *change)
+static irqreturn_t elog_event(int irq, void *data)
 {
-	/* check for error log event */
-	if (events & OPAL_EVENT_ERROR_LOG_AVAIL)
-		schedule_work(&elog_work);
-	return 0;
+	schedule_work(&elog_work);
+	return IRQ_HANDLED;
 }
-
-static struct notifier_block elog_nb = {
-	.notifier_call  = elog_event,
-	.next           = NULL,
-	.priority       = 0
-};
 
 int __init opal_elog_init(void)
 {
-	int rc = 0;
+	int rc = 0, irq;
+
+	/* ELOG not supported by firmware */
+	if (!opal_check_token(OPAL_ELOG_READ))
+		return -1;
 
 	elog_kset = kset_create_and_add("elog", NULL, opal_kobj);
 	if (!elog_kset) {
@@ -301,15 +297,24 @@ int __init opal_elog_init(void)
 		return -1;
 	}
 
-	rc = opal_notifier_register(&elog_nb);
+	irq = opal_event_request(ilog2(OPAL_EVENT_ERROR_LOG_AVAIL));
+	if (!irq) {
+		pr_err("%s: Can't register OPAL event irq (%d)\n",
+		       __func__, irq);
+		return irq;
+	}
+
+	rc = request_irq(irq, elog_event,
+			IRQ_TYPE_LEVEL_HIGH, "opal-elog", NULL);
 	if (rc) {
-		pr_err("%s: Can't register OPAL event notifier (%d)\n",
-		__func__, rc);
+		pr_err("%s: Can't request OPAL event irq (%d)\n",
+		       __func__, rc);
 		return rc;
 	}
 
 	/* We are now ready to pull error logs from opal. */
-	opal_resend_pending_logs();
+	if (opal_check_token(OPAL_ELOG_RESEND))
+		opal_resend_pending_logs();
 
 	return 0;
 }

@@ -175,9 +175,9 @@ static int sh_sci_spi_remove(struct platform_device *dev)
 {
 	struct sh_sci_spi *sp = platform_get_drvdata(dev);
 
-	iounmap(sp->membase);
-	setbits(sp, PIN_INIT, 0);
 	spi_bitbang_stop(&sp->bitbang);
+	setbits(sp, PIN_INIT, 0);
+	iounmap(sp->membase);
 	spi_master_put(sp->bitbang.master);
 	return 0;
 }
@@ -187,7 +187,6 @@ static struct platform_driver sh_sci_spi_drv = {
 	.remove		= sh_sci_spi_remove,
 	.driver		= {
 		.name	= "spi_sh_sci",
-		.owner	= THIS_MODULE,
 	},
 };
 module_platform_driver(sh_sci_spi_drv);

@@ -9,29 +9,9 @@
 #include <linux/sched.h>
 #include <linux/export.h>
 #include <linux/rwsem.h>
-
 #include <linux/atomic.h>
 
-#if defined(CONFIG_SMP) && defined(CONFIG_RWSEM_XCHGADD_ALGORITHM)
-static inline void rwsem_set_owner(struct rw_semaphore *sem)
-{
-	sem->owner = current;
-}
-
-static inline void rwsem_clear_owner(struct rw_semaphore *sem)
-{
-	sem->owner = NULL;
-}
-
-#else
-static inline void rwsem_set_owner(struct rw_semaphore *sem)
-{
-}
-
-static inline void rwsem_clear_owner(struct rw_semaphore *sem)
-{
-}
-#endif
+#include "rwsem.h"
 
 /*
  * lock for reading

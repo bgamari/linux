@@ -1,5 +1,5 @@
 /*
- * Queue read/write lock
+ * Queued read/write locks
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,27 @@
 #include <linux/cpumask.h>
 #include <linux/percpu.h>
 #include <linux/hardirq.h>
-#include <linux/mutex.h>
 #include <asm/qrwlock.h>
+
+/*
+ * This internal data structure is used for optimizing access to some of
+ * the subfields within the atomic_t cnts.
+ */
+struct __qrwlock {
+	union {
+		atomic_t cnts;
+		struct {
+#ifdef __LITTLE_ENDIAN
+			u8 wmode;	/* Writer mode   */
+			u8 rcnts[3];	/* Reader counts */
+#else
+			u8 rcnts[3];	/* Reader counts */
+			u8 wmode;	/* Writer mode   */
+#endif
+		};
+	};
+	arch_spinlock_t	lock;
+};
 
 /**
  * rspin_until_writer_unlock - inc reader count & spin until writer is gone
@@ -35,7 +54,7 @@ static __always_inline void
 rspin_until_writer_unlock(struct qrwlock *lock, u32 cnts)
 {
 	while ((cnts & _QW_WMASK) == _QW_LOCKED) {
-		arch_mutex_cpu_relax();
+		cpu_relax_lowlatency();
 		cnts = smp_load_acquire((u32 *)&lock->cnts);
 	}
 }
@@ -75,7 +94,7 @@ void queue_read_lock_slowpath(struct qrwlock *lock)
 	 * to make sure that the write lock isn't taken.
 	 */
 	while (atomic_read(&lock->cnts) & _QW_WMASK)
-		arch_mutex_cpu_relax();
+		cpu_relax_lowlatency();
 
 	cnts = atomic_add_return(_QR_BIAS, &lock->cnts) - _QR_BIAS;
 	rspin_until_writer_unlock(lock, cnts);
@@ -108,13 +127,13 @@ void queue_write_lock_slowpath(struct qrwlock *lock)
 	 * or wait for a previous writer to go away.
 	 */
 	for (;;) {
-		cnts = atomic_read(&lock->cnts);
-		if (!(cnts & _QW_WMASK) &&
-		    (atomic_cmpxchg(&lock->cnts, cnts,
-				    cnts | _QW_WAITING) == cnts))
+		struct __qrwlock *l = (struct __qrwlock *)lock;
+
+		if (!READ_ONCE(l->wmode) &&
+		   (cmpxchg(&l->wmode, 0, _QW_WAITING) == 0))
 			break;
 
-		arch_mutex_cpu_relax();
+		cpu_relax_lowlatency();
 	}
 
 	/* When no more readers, set the locked flag */
@@ -125,7 +144,7 @@ void queue_write_lock_slowpath(struct qrwlock *lock)
 				    _QW_LOCKED) == _QW_WAITING))
 			break;
 
-		arch_mutex_cpu_relax();
+		cpu_relax_lowlatency();
 	}
 unlock:
 	arch_spin_unlock(&lock->lock);

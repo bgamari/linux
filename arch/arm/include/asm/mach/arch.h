@@ -50,7 +50,8 @@ struct machine_desc {
 	struct smp_operations	*smp;		/* SMP operations	*/
 	bool			(*smp_init)(void);
 	void			(*fixup)(struct tag *, char **);
-	void			(*init_meminfo)(void);
+	void			(*dt_fixup)(void);
+	long long		(*pv_fixup)(void);
 	void			(*reserve)(void);/* reserve mem blocks	*/
 	void			(*map_io)(void);/* IO mapping function	*/
 	void			(*init_early)(void);

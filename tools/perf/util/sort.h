@@ -44,6 +44,7 @@ extern struct sort_entry sort_dso_to;
 extern struct sort_entry sort_sym_from;
 extern struct sort_entry sort_sym_to;
 extern enum sort_type sort__first_dimension;
+extern const char default_mem_sort_order[];
 
 struct he_stat {
 	u64			period;
@@ -57,15 +58,16 @@ struct he_stat {
 
 struct hist_entry_diff {
 	bool	computed;
+	union {
+		/* PERF_HPP__DELTA */
+		double	period_ratio_delta;
 
-	/* PERF_HPP__DELTA */
-	double	period_ratio_delta;
+		/* PERF_HPP__RATIO */
+		double	period_ratio;
 
-	/* PERF_HPP__RATIO */
-	double	period_ratio;
-
-	/* HISTC_WEIGHTED_DIFF */
-	s64	wdiff;
+		/* HISTC_WEIGHTED_DIFF */
+		s64	wdiff;
+	};
 };
 
 /**
@@ -89,23 +91,30 @@ struct hist_entry {
 	u64			ip;
 	u64			transaction;
 	s32			cpu;
-
-	struct hist_entry_diff	diff;
+	u8			cpumode;
 
 	/* We are added by hists__add_dummy_entry. */
 	bool			dummy;
 
-	/* XXX These two should move to some tree widget lib */
-	u16			row_offset;
-	u16			nr_rows;
-
-	bool			init_have_children;
 	char			level;
-	bool			used;
 	u8			filtered;
+	union {
+		/*
+		 * Since perf diff only supports the stdio output, TUI
+		 * fields are only accessed from perf report (or perf
+		 * top).  So make it an union to reduce memory usage.
+		 */
+		struct hist_entry_diff	diff;
+		struct /* for TUI */ {
+			u16	row_offset;
+			u16	nr_rows;
+			bool	init_have_children;
+			bool	unfolded;
+			bool	has_children;
+		};
+	};
 	char			*srcline;
 	struct symbol		*parent;
-	unsigned long		position;
 	struct rb_root		sorted_chain;
 	struct branch_info	*branch_info;
 	struct hists		*hists;
@@ -185,6 +194,7 @@ enum sort_type {
 	SORT_MEM_TLB,
 	SORT_MEM_LVL,
 	SORT_MEM_SNOOP,
+	SORT_MEM_DCACHELINE,
 };
 
 /*
@@ -216,4 +226,5 @@ void perf_hpp__set_elide(int idx, bool elide);
 
 int report_parse_ignore_callees_opt(const struct option *opt, const char *arg, int unset);
 
+bool is_strict_order(const char *order);
 #endif	/* __PERF_SORT_H */

@@ -233,7 +233,7 @@ static int tegra_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 		return -EINVAL;
 	}
 
-	ret = gpio_lock_as_irq(&tegra_gpio_chip, gpio);
+	ret = gpiochip_lock_as_irq(&tegra_gpio_chip, gpio);
 	if (ret) {
 		dev_err(dev, "unable to lock Tegra GPIO %d as IRQ\n", gpio);
 		return ret;
@@ -263,7 +263,7 @@ static void tegra_gpio_irq_shutdown(struct irq_data *d)
 {
 	int gpio = d->hwirq;
 
-	gpio_unlock_as_irq(&tegra_gpio_chip, gpio);
+	gpiochip_unlock_as_irq(&tegra_gpio_chip, gpio);
 }
 
 static void tegra_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
@@ -288,7 +288,7 @@ static void tegra_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 			tegra_gpio_writel(1 << pin, GPIO_INT_CLR(gpio));
 
 			/* if gpio is edge triggered, clear condition
-			 * before executing the hander so that we don't
+			 * before executing the handler so that we don't
 			 * miss edges
 			 */
 			if (lvl & (0x100 << pin)) {
@@ -515,8 +515,8 @@ static int tegra_gpio_probe(struct platform_device *pdev)
 	for (i = 0; i < tegra_gpio_bank_count; i++) {
 		bank = &tegra_gpio_banks[i];
 
-		irq_set_chained_handler(bank->irq, tegra_gpio_irq_handler);
-		irq_set_handler_data(bank->irq, bank);
+		irq_set_chained_handler_and_data(bank->irq,
+						 tegra_gpio_irq_handler, bank);
 
 		for (j = 0; j < 4; j++)
 			spin_lock_init(&bank->lvl_lock[j]);
@@ -528,7 +528,6 @@ static int tegra_gpio_probe(struct platform_device *pdev)
 static struct platform_driver tegra_gpio_driver = {
 	.driver		= {
 		.name	= "tegra-gpio",
-		.owner	= THIS_MODULE,
 		.pm	= &tegra_gpio_pm_ops,
 		.of_match_table = tegra_gpio_of_match,
 	},

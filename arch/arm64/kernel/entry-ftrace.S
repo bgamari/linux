@@ -96,15 +96,10 @@
  *     - ftrace_graph_caller to set up an exit hook
  */
 ENTRY(_mcount)
-#ifdef CONFIG_HAVE_FUNCTION_TRACE_MCOUNT_TEST
-	ldr	x0, =ftrace_trace_stop
-	ldr	x0, [x0]		// if ftrace_trace_stop
-	ret				//   return;
-#endif
 	mcount_enter
 
-	ldr	x0, =ftrace_trace_function
-	ldr	x2, [x0]
+	adrp	x0, ftrace_trace_function
+	ldr	x2, [x0, #:lo12:ftrace_trace_function]
 	adr	x0, ftrace_stub
 	cmp	x0, x2			// if (ftrace_trace_function
 	b.eq	skip_ftrace_call	//     != ftrace_stub) {
@@ -120,14 +115,15 @@ skip_ftrace_call:			//   return;
 	mcount_exit			//   return;
 					// }
 skip_ftrace_call:
-	ldr	x1, =ftrace_graph_return
-	ldr	x2, [x1]		//   if ((ftrace_graph_return
-	cmp	x0, x2			//        != ftrace_stub)
-	b.ne	ftrace_graph_caller
+	adrp	x1, ftrace_graph_return
+	ldr	x2, [x1, #:lo12:ftrace_graph_return]
+	cmp	x0, x2			//   if ((ftrace_graph_return
+	b.ne	ftrace_graph_caller	//        != ftrace_stub)
 
-	ldr	x1, =ftrace_graph_entry	//     || (ftrace_graph_entry
-	ldr	x2, [x1]		//        != ftrace_graph_entry_stub))
-	ldr	x0, =ftrace_graph_entry_stub
+	adrp	x1, ftrace_graph_entry	//     || (ftrace_graph_entry
+	adrp	x0, ftrace_graph_entry_stub //     != ftrace_graph_entry_stub))
+	ldr	x2, [x1, #:lo12:ftrace_graph_entry]
+	add	x0, x0, #:lo12:ftrace_graph_entry_stub
 	cmp	x0, x2
 	b.ne	ftrace_graph_caller	//     ftrace_graph_caller();
 
@@ -205,7 +201,7 @@ ENDPROC(ftrace_graph_caller)
  *
  * Run ftrace_return_to_handler() before going back to parent.
  * @fp is checked against the value passed by ftrace_graph_caller()
- * only when CONFIG_FUNCTION_GRAPH_FP_TEST is enabled.
+ * only when CONFIG_HAVE_FUNCTION_GRAPH_FP_TEST is enabled.
  */
 ENTRY(return_to_handler)
 	str	x0, [sp, #-16]!

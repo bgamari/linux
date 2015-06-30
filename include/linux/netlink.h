@@ -28,6 +28,8 @@ struct netlink_skb_parms {
 	__u32			dst_group;
 	__u32			flags;
 	struct sock		*sk;
+	bool			nsid_is_set;
+	int			nsid;
 };
 
 #define NETLINK_CB(skb)		(*(struct netlink_skb_parms*)&((skb)->cb))
@@ -46,8 +48,8 @@ struct netlink_kernel_cfg {
 	unsigned int	flags;
 	void		(*input)(struct sk_buff *skb);
 	struct mutex	*cb_mutex;
-	int		(*bind)(int group);
-	void		(*unbind)(int group);
+	int		(*bind)(struct net *net, int group);
+	void		(*unbind)(struct net *net, int group);
 	bool		(*compare)(struct net *net, struct sock *sk);
 };
 
@@ -134,7 +136,7 @@ struct netlink_callback {
 
 struct netlink_notify {
 	struct net *net;
-	int portid;
+	u32 portid;
 	int protocol;
 };
 

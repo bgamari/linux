@@ -336,10 +336,10 @@ static const struct {
 		QUIRK_CYCLE_TIMER | QUIRK_IR_WAKE},
 
 	{PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT6315, 0,
-		QUIRK_CYCLE_TIMER | QUIRK_NO_MSI},
+		QUIRK_CYCLE_TIMER /* FIXME: necessary? */ | QUIRK_NO_MSI},
 
 	{PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VT6315, PCI_ANY_ID,
-		0},
+		QUIRK_NO_MSI},
 
 	{PCI_VENDOR_ID_VIA, PCI_ANY_ID, PCI_ANY_ID,
 		QUIRK_CYCLE_TIMER | QUIRK_NO_MSI},
@@ -689,8 +689,7 @@ static void ar_context_release(struct ar_context *ctx)
 {
 	unsigned int i;
 
-	if (ctx->buffer)
-		vm_unmap_ram(ctx->buffer, AR_BUFFERS + AR_WRAPAROUND_PAGES);
+	vunmap(ctx->buffer);
 
 	for (i = 0; i < AR_BUFFERS; i++)
 		if (ctx->pages[i]) {
@@ -717,11 +716,6 @@ static void ar_context_abort(struct ar_context *ctx, const char *error_msg)
 static inline unsigned int ar_next_buffer_index(unsigned int index)
 {
 	return (index + 1) % AR_BUFFERS;
-}
-
-static inline unsigned int ar_prev_buffer_index(unsigned int index)
-{
-	return (index - 1 + AR_BUFFERS) % AR_BUFFERS;
 }
 
 static inline unsigned int ar_first_buffer_index(struct ar_context *ctx)
@@ -1018,8 +1012,7 @@ static int ar_context_init(struct ar_context *ctx, struct fw_ohci *ohci,
 		pages[i]              = ctx->pages[i];
 	for (i = 0; i < AR_WRAPAROUND_PAGES; i++)
 		pages[AR_BUFFERS + i] = ctx->pages[i];
-	ctx->buffer = vm_map_ram(pages, AR_BUFFERS + AR_WRAPAROUND_PAGES,
-				 -1, PAGE_KERNEL);
+	ctx->buffer = vmap(pages, ARRAY_SIZE(pages), VM_MAP, PAGE_KERNEL);
 	if (!ctx->buffer)
 		goto out_of_memory;
 

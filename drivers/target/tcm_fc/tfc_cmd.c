@@ -30,10 +30,6 @@
 #include <linux/hash.h>
 #include <linux/percpu_ida.h>
 #include <asm/unaligned.h>
-#include <scsi/scsi.h>
-#include <scsi/scsi_host.h>
-#include <scsi/scsi_device.h>
-#include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_tcq.h>
 #include <scsi/libfc.h>
 #include <scsi/fc_encode.h>
@@ -554,17 +550,17 @@ static void ft_send_work(struct work_struct *work)
 	 */
 	switch (fcp->fc_pri_ta & FCP_PTA_MASK) {
 	case FCP_PTA_HEADQ:
-		task_attr = MSG_HEAD_TAG;
+		task_attr = TCM_HEAD_TAG;
 		break;
 	case FCP_PTA_ORDERED:
-		task_attr = MSG_ORDERED_TAG;
+		task_attr = TCM_ORDERED_TAG;
 		break;
 	case FCP_PTA_ACA:
-		task_attr = MSG_ACA_TAG;
+		task_attr = TCM_ACA_TAG;
 		break;
 	case FCP_PTA_SIMPLE: /* Fallthrough */
 	default:
-		task_attr = MSG_SIMPLE_TAG;
+		task_attr = TCM_SIMPLE_TAG;
 	}
 
 	fc_seq_exch(cmd->seq)->lp->tt.seq_set_resp(cmd->seq, ft_recv_seq, cmd);

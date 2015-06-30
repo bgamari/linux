@@ -30,6 +30,10 @@ extern void fixup_irqs(void);
 extern void irq_force_complete_move(int);
 #endif
 
+#ifdef CONFIG_HAVE_KVM
+extern void kvm_set_posted_intr_wakeup_handler(void (*handler)(void));
+#endif
+
 extern void (*x86_platform_ipi_callback)(void);
 extern void native_init_IRQ(void);
 extern bool handle_irq(unsigned irq, struct pt_regs *regs);
@@ -43,7 +47,7 @@ extern int vector_used_by_percpu_irq(unsigned int vector);
 extern void init_ISA_irqs(void);
 
 #ifdef CONFIG_X86_LOCAL_APIC
-void arch_trigger_all_cpu_backtrace(void);
+void arch_trigger_all_cpu_backtrace(bool);
 #define arch_trigger_all_cpu_backtrace arch_trigger_all_cpu_backtrace
 #endif
 

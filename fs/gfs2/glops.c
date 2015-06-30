@@ -28,6 +28,8 @@
 #include "trans.h"
 #include "dir.h"
 
+struct workqueue_struct *gfs2_freeze_wq;
+
 static void gfs2_ail_error(struct gfs2_glock *gl, const struct buffer_head *bh)
 {
 	fs_err(gl->gl_sbd, "AIL buffer %p: blocknr %llu state 0x%08lx mapping %p page state 0x%lx\n",
@@ -93,12 +95,9 @@ static void gfs2_ail_empty_gl(struct gfs2_glock *gl)
          * tr->alloced is not set since the transaction structure is
          * on the stack */
 	tr.tr_reserved = 1 + gfs2_struct2blk(sdp, tr.tr_revokes, sizeof(u64));
-	tr.tr_ip = (unsigned long)__builtin_return_address(0);
-	sb_start_intwrite(sdp->sd_vfs);
-	if (gfs2_log_reserve(sdp, tr.tr_reserved) < 0) {
-		sb_end_intwrite(sdp->sd_vfs);
+	tr.tr_ip = _RET_IP_;
+	if (gfs2_log_reserve(sdp, tr.tr_reserved) < 0)
 		return;
-	}
 	WARN_ON_ONCE(current->journal_info);
 	current->journal_info = &tr;
 
@@ -145,6 +144,12 @@ static void rgrp_go_sync(struct gfs2_glock *gl)
 	struct gfs2_rgrpd *rgd;
 	int error;
 
+	spin_lock(&gl->gl_spin);
+	rgd = gl->gl_object;
+	if (rgd)
+		gfs2_rgrp_brelse(rgd);
+	spin_unlock(&gl->gl_spin);
+
 	if (!test_and_clear_bit(GLF_DIRTY, &gl->gl_flags))
 		return;
 	GLOCK_BUG_ON(gl, gl->gl_state != LM_ST_EXCLUSIVE);
@@ -176,15 +181,17 @@ static void rgrp_go_inval(struct gfs2_glock *gl, int flags)
 {
 	struct gfs2_sbd *sdp = gl->gl_sbd;
 	struct address_space *mapping = &sdp->sd_aspace;
+	struct gfs2_rgrpd *rgd = gl->gl_object;
+
+	if (rgd)
+		gfs2_rgrp_brelse(rgd);
 
 	WARN_ON_ONCE(!(flags & DIO_METADATA));
 	gfs2_assert_withdraw(sdp, !atomic_read(&gl->gl_ail_count));
 	truncate_inode_pages_range(mapping, gl->gl_vm.start, gl->gl_vm.end);
 
-	if (gl->gl_object) {
-		struct gfs2_rgrpd *rgd = (struct gfs2_rgrpd *)gl->gl_object;
+	if (rgd)
 		rgd->rd_flags &= ~GFS2_RDF_UPTODATE;
-	}
 }
 
 /**
@@ -234,8 +241,8 @@ static void inode_go_sync(struct gfs2_glock *gl)
  * inode_go_inval - prepare a inode glock to be released
  * @gl: the glock
  * @flags:
- * 
- * Normally we invlidate everything, but if we are moving into
+ *
+ * Normally we invalidate everything, but if we are moving into
  * LM_ST_DEFERRED from LM_ST_SHARED or LM_ST_EXCLUSIVE then we
  * can keep hold of the metadata, since it won't have changed.
  *
@@ -469,20 +476,19 @@ static void inode_go_dump(struct seq_file *seq, const struct gfs2_glock *gl)
 
 static void freeze_go_sync(struct gfs2_glock *gl)
 {
+	int error = 0;
 	struct gfs2_sbd *sdp = gl->gl_sbd;
-	DEFINE_WAIT(wait);
 
 	if (gl->gl_state == LM_ST_SHARED &&
 	    test_bit(SDF_JOURNAL_LIVE, &sdp->sd_flags)) {
-		atomic_set(&sdp->sd_log_freeze, 1);
-		wake_up(&sdp->sd_logd_waitq);
-		do {
-			prepare_to_wait(&sdp->sd_log_frozen_wait, &wait,
-					TASK_UNINTERRUPTIBLE);
-			if (atomic_read(&sdp->sd_log_freeze))
-				io_schedule();
-		} while(atomic_read(&sdp->sd_log_freeze));
-		finish_wait(&sdp->sd_log_frozen_wait, &wait);
+		atomic_set(&sdp->sd_freeze_state, SFS_STARTING_FREEZE);
+		error = freeze_super(sdp->sd_vfs);
+		if (error) {
+			printk(KERN_INFO "GFS2: couldn't freeze filesystem: %d\n", error);
+			gfs2_assert_withdraw(sdp, 0);
+		}
+		queue_work(gfs2_freeze_wq, &sdp->sd_freeze_work);
+		gfs2_log_flush(sdp, NULL, FREEZE_FLUSH);
 	}
 }
 
@@ -563,7 +569,7 @@ const struct gfs2_glock_operations gfs2_inode_glops = {
 	.go_lock = inode_go_lock,
 	.go_dump = inode_go_dump,
 	.go_type = LM_TYPE_INODE,
-	.go_flags = GLOF_ASPACE,
+	.go_flags = GLOF_ASPACE | GLOF_LRU,
 };
 
 const struct gfs2_glock_operations gfs2_rgrp_glops = {
@@ -586,10 +592,12 @@ const struct gfs2_glock_operations gfs2_freeze_glops = {
 const struct gfs2_glock_operations gfs2_iopen_glops = {
 	.go_type = LM_TYPE_IOPEN,
 	.go_callback = iopen_go_callback,
+	.go_flags = GLOF_LRU,
 };
 
 const struct gfs2_glock_operations gfs2_flock_glops = {
 	.go_type = LM_TYPE_FLOCK,
+	.go_flags = GLOF_LRU,
 };
 
 const struct gfs2_glock_operations gfs2_nondisk_glops = {
@@ -598,7 +606,7 @@ const struct gfs2_glock_operations gfs2_nondisk_glops = {
 
 const struct gfs2_glock_operations gfs2_quota_glops = {
 	.go_type = LM_TYPE_QUOTA,
-	.go_flags = GLOF_LVB,
+	.go_flags = GLOF_LVB | GLOF_LRU,
 };
 
 const struct gfs2_glock_operations gfs2_journal_glops = {

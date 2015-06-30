@@ -1,8 +1,6 @@
 #ifndef _UAPI_ASM_S390_SIE_H
 #define _UAPI_ASM_S390_SIE_H
 
-#include <asm/sigp.h>
-
 #define diagnose_codes						\
 	{ 0x10, "DIAG (0x10) release pages" },			\
 	{ 0x44, "DIAG (0x44) time slice end" },			\
@@ -13,18 +11,18 @@
 	{ 0x500, "DIAG (0x500) KVM virtio functions" },		\
 	{ 0x501, "DIAG (0x501) KVM breakpoint" }
 
-#define sigp_order_codes						\
-	{ SIGP_SENSE, "SIGP sense" },					\
-	{ SIGP_EXTERNAL_CALL, "SIGP external call" },			\
-	{ SIGP_EMERGENCY_SIGNAL, "SIGP emergency signal" },		\
-	{ SIGP_STOP, "SIGP stop" },					\
-	{ SIGP_STOP_AND_STORE_STATUS, "SIGP stop and store status" },	\
-	{ SIGP_SET_ARCHITECTURE, "SIGP set architecture" },		\
-	{ SIGP_SET_PREFIX, "SIGP set prefix" },				\
-	{ SIGP_SENSE_RUNNING, "SIGP sense running" },			\
-	{ SIGP_RESTART, "SIGP restart" },				\
-	{ SIGP_INITIAL_CPU_RESET, "SIGP initial cpu reset" },		\
-	{ SIGP_STORE_STATUS_AT_ADDRESS, "SIGP store status at address" }
+#define sigp_order_codes					\
+	{ 0x01, "SIGP sense" },					\
+	{ 0x02, "SIGP external call" },				\
+	{ 0x03, "SIGP emergency signal" },			\
+	{ 0x05, "SIGP stop" },					\
+	{ 0x06, "SIGP restart" },				\
+	{ 0x09, "SIGP stop and store status" },			\
+	{ 0x0b, "SIGP initial cpu reset" },			\
+	{ 0x0d, "SIGP set prefix" },				\
+	{ 0x0e, "SIGP store status at address" },		\
+	{ 0x12, "SIGP set architecture" },			\
+	{ 0x15, "SIGP sense running" }
 
 #define icpt_prog_codes						\
 	{ 0x0001, "Prog Operation" },				\
@@ -110,6 +108,7 @@
 	exit_code_ipa0(0xB2, 0x17, "STETR"),	\
 	exit_code_ipa0(0xB2, 0x18, "PC"),	\
 	exit_code_ipa0(0xB2, 0x20, "SERVC"),	\
+	exit_code_ipa0(0xB2, 0x21, "IPTE"),	\
 	exit_code_ipa0(0xB2, 0x28, "PT"),	\
 	exit_code_ipa0(0xB2, 0x29, "ISKE"),	\
 	exit_code_ipa0(0xB2, 0x2a, "RRBE"),	\
@@ -231,7 +230,7 @@
  * and returns a key, which can be used to find a mnemonic name
  * of the instruction in the icpt_insn_codes table.
  */
-#define icpt_insn_decoder(insn)			\
+#define icpt_insn_decoder(insn) (		\
 	INSN_DECODE_IPA0(0x01, insn, 48, 0xff)	\
 	INSN_DECODE_IPA0(0xaa, insn, 48, 0x0f)	\
 	INSN_DECODE_IPA0(0xb2, insn, 48, 0xff)	\
@@ -240,6 +239,6 @@
 	INSN_DECODE_IPA0(0xe5, insn, 48, 0xff)	\
 	INSN_DECODE_IPA0(0xeb, insn, 16, 0xff)	\
 	INSN_DECODE_IPA0(0xc8, insn, 48, 0x0f)	\
-	INSN_DECODE(insn)
+	INSN_DECODE(insn))
 
 #endif /* _UAPI_ASM_S390_SIE_H */

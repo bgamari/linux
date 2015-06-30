@@ -361,11 +361,11 @@ static int ssm2518_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 
 	if (ssm2518->right_j) {
-		switch (params_format(params)) {
-		case SNDRV_PCM_FORMAT_S16_LE:
+		switch (params_width(params)) {
+		case 16:
 			ctrl1 |= SSM2518_SAI_CTRL1_FMT_RJ_16BIT;
 			break;
-		case SNDRV_PCM_FORMAT_S24_LE:
+		case 24:
 			ctrl1 |= SSM2518_SAI_CTRL1_FMT_RJ_24BIT;
 			break;
 		default:
@@ -510,7 +510,7 @@ static int ssm2518_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_PREPARE:
 		break;
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF)
+		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_OFF)
 			ret = ssm2518_set_power(ssm2518, true);
 		break;
 	case SND_SOC_BIAS_OFF:
@@ -518,12 +518,7 @@ static int ssm2518_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	}
 
-	if (ret)
-		return ret;
-
-	codec->dapm.bias_level = level;
-
-	return 0;
+	return ret;
 }
 
 static int ssm2518_set_tdm_slot(struct snd_soc_dai *dai, unsigned int tx_mask,
@@ -646,17 +641,6 @@ static struct snd_soc_dai_driver ssm2518_dai = {
 	.ops = &ssm2518_dai_ops,
 };
 
-static int ssm2518_probe(struct snd_soc_codec *codec)
-{
-	return ssm2518_set_bias_level(codec, SND_SOC_BIAS_OFF);
-}
-
-static int ssm2518_remove(struct snd_soc_codec *codec)
-{
-	ssm2518_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	return 0;
-}
-
 static int ssm2518_set_sysclk(struct snd_soc_codec *codec, int clk_id,
 	int source, unsigned int freq, int dir)
 {
@@ -727,8 +711,6 @@ static int ssm2518_set_sysclk(struct snd_soc_codec *codec, int clk_id,
 }
 
 static struct snd_soc_codec_driver ssm2518_codec_driver = {
-	.probe = ssm2518_probe,
-	.remove = ssm2518_remove,
 	.set_bias_level = ssm2518_set_bias_level,
 	.set_sysclk = ssm2518_set_sysclk,
 	.idle_bias_off = true,

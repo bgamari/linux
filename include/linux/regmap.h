@@ -27,6 +27,7 @@ struct spmi_device;
 struct regmap;
 struct regmap_range_cfg;
 struct regmap_field;
+struct snd_ac97;
 
 /* An enum of all the supported cache types */
 enum regcache_type {
@@ -340,6 +341,8 @@ struct regmap *regmap_init_spmi_ext(struct spmi_device *dev,
 struct regmap *regmap_init_mmio_clk(struct device *dev, const char *clk_id,
 				    void __iomem *regs,
 				    const struct regmap_config *config);
+struct regmap *regmap_init_ac97(struct snd_ac97 *ac97,
+				const struct regmap_config *config);
 
 struct regmap *devm_regmap_init(struct device *dev,
 				const struct regmap_bus *bus,
@@ -356,6 +359,10 @@ struct regmap *devm_regmap_init_spmi_ext(struct spmi_device *dev,
 struct regmap *devm_regmap_init_mmio_clk(struct device *dev, const char *clk_id,
 					 void __iomem *regs,
 					 const struct regmap_config *config);
+struct regmap *devm_regmap_init_ac97(struct snd_ac97 *ac97,
+				     const struct regmap_config *config);
+
+bool regmap_ac97_default_volatile(struct device *dev, unsigned int reg);
 
 /**
  * regmap_init_mmio(): Initialise register map
@@ -396,6 +403,7 @@ void regmap_exit(struct regmap *map);
 int regmap_reinit_cache(struct regmap *map,
 			const struct regmap_config *config);
 struct regmap *dev_get_regmap(struct device *dev, const char *name);
+struct device *regmap_get_device(struct regmap *map);
 int regmap_write(struct regmap *map, unsigned int reg, unsigned int val);
 int regmap_write_async(struct regmap *map, unsigned int reg, unsigned int val);
 int regmap_raw_write(struct regmap *map, unsigned int reg,
@@ -425,6 +433,8 @@ int regmap_update_bits_check_async(struct regmap *map, unsigned int reg,
 				   unsigned int mask, unsigned int val,
 				   bool *change);
 int regmap_get_val_bytes(struct regmap *map);
+int regmap_get_max_register(struct regmap *map);
+int regmap_get_reg_stride(struct regmap *map);
 int regmap_async_complete(struct regmap *map);
 bool regmap_can_raw_write(struct regmap *map);
 
@@ -460,7 +470,7 @@ bool regmap_reg_in_ranges(unsigned int reg,
  *
  * @reg: Offset of the register within the regmap bank
  * @lsb: lsb of the register field.
- * @reg: msb of the register field.
+ * @msb: msb of the register field.
  * @id_size: port size if it has some ports
  * @id_offset: address offset for each ports
  */
@@ -668,6 +678,18 @@ static inline int regmap_get_val_bytes(struct regmap *map)
 	return -EINVAL;
 }
 
+static inline int regmap_get_max_register(struct regmap *map)
+{
+	WARN_ONCE(1, "regmap API is disabled");
+	return -EINVAL;
+}
+
+static inline int regmap_get_reg_stride(struct regmap *map)
+{
+	WARN_ONCE(1, "regmap API is disabled");
+	return -EINVAL;
+}
+
 static inline int regcache_sync(struct regmap *map)
 {
 	WARN_ONCE(1, "regmap API is disabled");
@@ -726,6 +748,12 @@ static inline int regmap_parse_val(struct regmap *map, const void *buf,
 static inline struct regmap *dev_get_regmap(struct device *dev,
 					    const char *name)
 {
+	return NULL;
+}
+
+static inline struct device *regmap_get_device(struct regmap *map)
+{
+	WARN_ONCE(1, "regmap API is disabled");
 	return NULL;
 }
 

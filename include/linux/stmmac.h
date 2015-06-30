@@ -99,6 +99,7 @@ struct plat_stmmacenet_data {
 	int phy_addr;
 	int interface;
 	struct stmmac_mdio_bus_data *mdio_bus_data;
+	struct device_node *phy_node;
 	struct stmmac_dma_cfg *dma_cfg;
 	int clk_csr;
 	int has_gmac;
@@ -112,6 +113,10 @@ struct plat_stmmacenet_data {
 	int riwt_off;
 	int max_speed;
 	int maxmtu;
+	int multicast_filter_bins;
+	int unicast_filter_entries;
+	int tx_fifo_size;
+	int rx_fifo_size;
 	void (*fix_mac_speed)(void *priv, unsigned int speed);
 	void (*bus_setup)(void __iomem *ioaddr);
 	void *(*setup)(struct platform_device *pdev);
