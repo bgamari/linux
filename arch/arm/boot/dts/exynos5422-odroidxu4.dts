@@ -32,6 +32,16 @@
 	};
 };
 
+&cpu0 {
+	cpu-cluster.0-supply = <&buck2_reg>;
+	cpu-cluster.1-supply = <&buck6_reg>;
+};
+
+&cpu4 {
+	cpu-cluster.0-supply = <&buck2_reg>;
+	cpu-cluster.1-supply = <&buck6_reg>;
+};
+
 &pwm {
 	/*
 	 * PWM 0 -- fan
