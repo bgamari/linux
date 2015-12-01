@@ -35,12 +35,16 @@ static struct device_node *get_cpu_node_with_valid_op(int cpu)
 {
 	struct device_node *np = of_cpu_device_node_get(cpu);
 
-	if (!of_get_property(np, "operating-points", NULL)) {
-		of_node_put(np);
-		np = NULL;
+	if (of_get_property(np, "operating-points-v2", NULL)) {
+		return np;
 	}
 
-	return np;
+	if (of_get_property(np, "operating-points", NULL)) {
+		return np;
+	}
+
+	of_node_put(np);
+	return NULL;
 }
 
 static int dt_init_opp_table(struct device *cpu_dev)
