@@ -158,6 +158,9 @@ bL_cpufreq_set_rate_cluster(u32 cpu, u32 cluster, u32 new_rate_kHz)
 		volt_old = regulator_get_voltage(reg[cluster]);
 		pr_debug("%s: cpu %d, cluster: %d, Found OPP: %ld kHz, %ld uV\n",
 			__func__, cpu, cluster, opp_freq / 1000, volt);
+	} else {
+		pr_err("%s: cpu %d, cluster: %d, Have no regulator\n",
+					 __func__, cpu, cluster);
 	}
 
 	pr_debug("%s: cpu %d, cluster: %d, %u MHz, %ld mV --> %u MHz, %ld mV\n",
