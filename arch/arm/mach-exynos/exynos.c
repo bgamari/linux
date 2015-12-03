@@ -235,8 +235,8 @@ static const struct of_device_id exynos_cpufreq_matches[] = {
 	 * ondemand governor stress testing (observed on ODROID-XU3 board).
 	 */
 #ifndef CONFIG_BL_SWITCHER
-	{ .compatible = "samsung,exynos5420", .data = "arm-bL-cpufreq-dt" },
-	{ .compatible = "samsung,exynos5800", .data = "arm-bL-cpufreq-dt" },
+	{ .compatible = "samsung,exynos5420", .data = "cpufreq-dt" },
+	{ .compatible = "samsung,exynos5800", .data = "cpufreq-dt" },
 #endif
 	{ /* sentinel */ }
 };
