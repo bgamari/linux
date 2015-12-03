@@ -105,16 +105,16 @@ static unsigned int find_cluster_maxfreq(int cluster)
 static unsigned int clk_get_cpu_rate(unsigned int cpu)
 {
 	u32 cur_cluster = per_cpu(physical_cluster, cpu);
-	u32 rate = clk_get_rate(clk[cur_cluster]) / 1000;
+	u32 rate_kHz = clk_get_rate(clk[cur_cluster]) / 1000;
 
 	/* For switcher we use virtual A7 clock rates */
 	if (is_bL_switching_enabled())
-		rate = VIRT_FREQ(cur_cluster, rate);
+		rate_kHz = VIRT_FREQ(cur_cluster, rate_kHz);
 
 	pr_debug("%s: cpu: %d, cluster: %d, freq: %u\n", __func__, cpu,
-			cur_cluster, rate);
+			cur_cluster, rate_kHz);
 
-	return rate;
+	return rate_kHz;
 }
 
 static unsigned int bL_cpufreq_get_rate(unsigned int cpu)
@@ -134,11 +134,11 @@ bL_cpufreq_set_rate_cluster(u32 cpu, u32 cluster, u32 new_rate_kHz)
 {
 	unsigned long volt = 0, volt_old = 0;
 	long freq_Hz;
-	u32 old_rate;
+	u32 old_rate_kHz;
 	int ret;
 
 	freq_Hz = new_rate_kHz * 1000;
-	old_rate = clk_get_rate(clk[cluster]) / 1000;
+	old_rate_kHz = clk_get_rate(clk[cluster]) / 1000;
 
 	if (!IS_ERR(reg[cluster])) {
 		struct dev_pm_opp *opp;
@@ -165,11 +165,11 @@ bL_cpufreq_set_rate_cluster(u32 cpu, u32 cluster, u32 new_rate_kHz)
 
 	pr_debug("%s: cpu %d, cluster: %d, %u MHz, %ld mV --> %u MHz, %ld mV\n",
 		__func__, cpu, cluster,
-		old_rate / 1000, (volt_old > 0) ? volt_old / 1000 : -1,
+		old_rate_kHz / 1000, (volt_old > 0) ? volt_old / 1000 : -1,
 		new_rate_kHz / 1000, volt ? volt / 1000 : -1);
 
 	/* scaling up? scale voltage before frequency */
-	if (!IS_ERR(reg[cluster]) && new_rate_kHz > old_rate) {
+	if (!IS_ERR(reg[cluster]) && new_rate_kHz > old_rate_kHz) {
 		ret = regulator_set_voltage_tol(reg[cluster], volt, 0);
 		if (ret) {
 			pr_err("%s: cpu: %d, cluster: %d, failed to scale voltage up: %d\n",
@@ -188,12 +188,12 @@ bL_cpufreq_set_rate_cluster(u32 cpu, u32 cluster, u32 new_rate_kHz)
 	}
 
 	/* scaling down? scale voltage after frequency */
-	if (!IS_ERR(reg[cluster]) && new_rate_kHz < old_rate) {
+	if (!IS_ERR(reg[cluster]) && new_rate_kHz < old_rate_kHz) {
 		ret = regulator_set_voltage_tol(reg[cluster], volt, 0);
 		if (ret) {
 			pr_err("%s: cpu: %d, cluster: %d, failed to scale voltage down: %d\n",
 				__func__, cpu, cluster, ret);
-			clk_set_rate(clk[cluster], old_rate * 1000);
+			clk_set_rate(clk[cluster], old_rate_kHz * 1000);
 			return ret;
 		}
 	}
@@ -204,27 +204,27 @@ bL_cpufreq_set_rate_cluster(u32 cpu, u32 cluster, u32 new_rate_kHz)
 static unsigned int
 bL_cpufreq_set_rate(u32 cpu, u32 old_cluster, u32 new_cluster, u32 rate_kHz)
 {
-	u32 new_rate, prev_rate;
+	u32 new_rate_kHz, prev_rate_kHz;
 	int ret;
 	bool bLs = is_bL_switching_enabled();
 
 	mutex_lock(&cluster_lock[new_cluster]);
 
 	if (bLs) {
-		prev_rate = per_cpu(cpu_last_req_freq, cpu);
+		prev_rate_kHz = per_cpu(cpu_last_req_freq, cpu);
 		per_cpu(cpu_last_req_freq, cpu) = rate_kHz;
 		per_cpu(physical_cluster, cpu) = new_cluster;
 
-		new_rate = find_cluster_maxfreq(new_cluster);
-		new_rate = ACTUAL_FREQ(new_cluster, new_rate);
+		new_rate_kHz = find_cluster_maxfreq(new_cluster);
+		new_rate_kHz = ACTUAL_FREQ(new_cluster, new_rate_kHz);
 	} else {
-		new_rate = rate_kHz;
+		new_rate_kHz = rate_kHz;
 	}
 
 	pr_debug("%s: cpu: %d, old cluster: %d, new cluster: %d, freq: %d\n",
-			__func__, cpu, old_cluster, new_cluster, new_rate);
+			__func__, cpu, old_cluster, new_cluster, new_rate_kHz);
 
-	ret = bL_cpufreq_set_rate_cluster(cpu, new_cluster, new_rate);
+	ret = bL_cpufreq_set_rate_cluster(cpu, new_cluster, new_rate_kHz);
 	if (!ret) {
 		/*
 		 * FIXME: clk_set_rate hasn't returned an error here however it
@@ -234,10 +234,10 @@ bL_cpufreq_set_rate(u32 cpu, u32 old_cluster, u32 new_cluster, u32 rate_kHz)
 		 * problem we will read back the clock rate and check it is
 		 * correct. This needs to be removed once clk core is fixed.
 		 */
-		if (clk_get_rate(clk[new_cluster]) != new_rate * 1000)
+		if (clk_get_rate(clk[new_cluster]) != new_rate_kHz * 1000)
 			ret = -EIO;
 	} else if (ret && bLs) {
-		per_cpu(cpu_last_req_freq, cpu) = prev_rate;
+		per_cpu(cpu_last_req_freq, cpu) = prev_rate_kHz;
 		per_cpu(physical_cluster, cpu) = old_cluster;
 	}
 
@@ -257,14 +257,14 @@ bL_cpufreq_set_rate(u32 cpu, u32 old_cluster, u32 new_cluster, u32 rate_kHz)
 		mutex_lock(&cluster_lock[old_cluster]);
 
 		/* Set freq of old cluster if there are cpus left on it */
-		new_rate = find_cluster_maxfreq(old_cluster);
-		new_rate = ACTUAL_FREQ(old_cluster, new_rate);
+		new_rate_kHz = find_cluster_maxfreq(old_cluster);
+		new_rate_kHz = ACTUAL_FREQ(old_cluster, new_rate_kHz);
 
-		if (new_rate) {
+		if (new_rate_kHz) {
 			pr_debug("%s: Updating rate of old cluster: %d, to freq: %d\n",
-					__func__, old_cluster, new_rate);
+					__func__, old_cluster, new_rate_kHz);
 
-			if (bL_cpufreq_set_rate_cluster(cpu, old_cluster, new_rate)) {
+			if (bL_cpufreq_set_rate_cluster(cpu, old_cluster, new_rate_kHz)) {
 				pr_err("%s: bL_cpufreq_set_rate_cluster failed\n",
 					__func__);
 			}
