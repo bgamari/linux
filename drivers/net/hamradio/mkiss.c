@@ -728,11 +728,12 @@ static int mkiss_open(struct tty_struct *tty)
 	dev->type = ARPHRD_AX25;
 
 	/* Perform the low-level AX25 initialization. */
-	if ((err = ax_open(ax->dev))) {
+	err = ax_open(ax->dev);
+	if (err)
 		goto out_free_netdev;
-	}
 
-	if (register_netdev(dev))
+	err = register_netdev(dev);
+	if (err)
 		goto out_free_buffers;
 
 	/* after register_netdev() - because else printk smashes the kernel */
@@ -797,13 +798,13 @@ static void mkiss_close(struct tty_struct *tty)
 	if (!atomic_dec_and_test(&ax->refcnt))
 		down(&ax->dead_sem);
 
-	unregister_netdev(ax->dev);
-
 	/* Free all AX25 frame buffers. */
 	kfree(ax->rbuff);
 	kfree(ax->xbuff);
 
 	ax->tty = NULL;
+
+	unregister_netdev(ax->dev);
 }
 
 /* Perform I/O control on an active ax25 channel. */

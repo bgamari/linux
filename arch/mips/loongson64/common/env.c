@@ -6,7 +6,7 @@
  * Copyright 2003 ICT CAS
  * Author: Michael Guo <guoyi@ict.ac.cn>
  *
- * Copyright (C) 2007 Lemote Inc. & Insititute of Computing Technology
+ * Copyright (C) 2007 Lemote Inc. & Institute of Computing Technology
  * Author: Fuxin Zhang, zhangfx@lemote.com
  *
  * Copyright (C) 2009 Lemote Inc.
@@ -64,6 +64,9 @@ void __init prom_init_env(void)
 	}
 	if (memsize == 0)
 		memsize = 256;
+
+	loongson_sysconf.nr_uarts = 1;
+
 	pr_info("memsize=%u, highmemsize=%u\n", memsize, highmemsize);
 #else
 	struct boot_params *boot_p;
